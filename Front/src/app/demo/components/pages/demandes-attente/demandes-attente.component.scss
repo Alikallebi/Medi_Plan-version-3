@@ -1,0 +1,138 @@
+:host {
+    display: block;
+}
+
+.pending-requests-page {
+    padding: 1rem;
+}
+
+.pending-requests-page header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.pending-requests-page h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.4rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 0.8rem;
+    border: 1px solid #e2e8f0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    white-space: nowrap;
+}
+
+th {
+    color: #64748b;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.actions-cell {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.history-row td {
+    background: #f8fbff;
+    border-top: 0;
+}
+
+.history-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.4rem 0.1rem;
+}
+
+.history-item {
+    border: 1px solid #dbe7f5;
+    border-radius: 0.7rem;
+    background: #ffffff;
+    padding: 0.6rem 0.75rem;
+}
+
+.history-item-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    color: #0f172a;
+}
+
+.history-item p {
+    margin: 0.3rem 0 0;
+    color: #475569;
+}
+
+.history-loader,
+.empty-history {
+    color: #64748b;
+    margin: 0;
+    padding: 0.35rem 0.1rem;
+}
+
+.reject-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 1100;
+}
+
+.reject-modal {
+    position: fixed;
+    width: min(560px, calc(100vw - 2rem));
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1101;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.9rem;
+    box-shadow: 0 24px 50px rgba(15, 23, 42, 0.35);
+    padding: 1rem;
+}
+
+.reject-modal h3 {
+    margin: 0 0 0.75rem;
+}
+
+.reject-modal label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    color: #334155;
+    font-weight: 600;
+}
+
+.reject-modal textarea {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.7rem;
+    font-family: inherit;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}

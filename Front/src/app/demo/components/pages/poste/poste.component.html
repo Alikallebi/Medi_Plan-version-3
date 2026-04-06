@@ -1,0 +1,672 @@
+<div class="postes-page">
+    <!-- Hero Header -->
+    <div class="hero-header">
+        <div class="header-content">
+            <div class="title-section">
+                <div class="title-badge">
+                    <i class="pi pi-clock"></i>
+                    <span>Catalogue</span>
+                </div>
+                <h1>Postes horaires</h1>
+                <p class="subtitle">Définissez les types de postes utilisés dans les plannings</p>
+            </div>
+            <div class="header-actions">
+                <button pButton type="button" label="Nouveau poste" icon="pi pi-plus" 
+                        class="p-button-primary action-btn" *ngIf="rbac.canEdit('referentiel.postes')" (click)="openCreateDialog()"></button>
+                <button pButton type="button" label="Importer" icon="pi pi-upload" 
+                        class="p-button-outlined action-btn" *ngIf="rbac.canEdit('referentiel.postes')" (click)="showImportDialog = true"></button>
+                <button pButton type="button" label="Exporter" icon="pi pi-download" 
+                        class="p-button-outlined action-btn" (click)="exportCatalogue()"></button>
+                <button pButton type="button" [icon]="viewMode === 'grid' ? 'pi pi-list' : 'pi pi-th-large'" 
+                        class="p-button-outlined action-btn" (click)="toggleView()" 
+                        pTooltip="Changer de vue"></button>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon total">
+                    <i class="pi pi-calendar"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Total actifs</span>
+                    <span class="stat-value">{{ getActivePostes().length }}</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon jour">
+                    <i class="pi pi-sun"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Jour</span>
+                    <span class="stat-value">{{ getPostesByType('jour').length }}</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon nuit">
+                    <i class="pi pi-moon"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Nuit</span>
+                    <span class="stat-value">{{ getPostesByType('nuit').length }}</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon garde">
+                    <i class="pi pi-shield"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Garde</span>
+                    <span class="stat-value">{{ getPostesByType('garde').length }}</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon astreinte">
+                    <i class="pi pi-clock"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Astreinte</span>
+                    <span class="stat-value">{{ getPostesByType('astreinte').length }}</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon repos">
+                    <i class="pi pi-bed"></i>
+                </div>
+                <div class="stat-details">
+                    <span class="stat-label">Repos</span>
+                    <span class="stat-value">{{ getPostesByType('repos').length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="filters-panel glass">
+        <div class="search-section">
+            <span class="p-input-icon-left search-input">
+                <i class="pi pi-search"></i>
+                <input type="text" pInputText placeholder="Rechercher un poste (nom, code, description)..." 
+                       [(ngModel)]="searchTerm" (input)="applyFilters()" />
+            </span>
+        </div>
+        
+        <div class="filter-tabs">
+            <button pButton type="button" label="Tous" 
+                    [class.active]="activeFilter === 'all'" 
+                    (click)="setFilter('all')" class="filter-tab"></button>
+            <button pButton type="button" label="Jour" 
+                    [class.active]="activeFilter === 'jour'" 
+                    (click)="setFilter('jour')" class="filter-tab"></button>
+            <button pButton type="button" label="Nuit" 
+                    [class.active]="activeFilter === 'nuit'" 
+                    (click)="setFilter('nuit')" class="filter-tab"></button>
+            <button pButton type="button" label="Garde" 
+                    [class.active]="activeFilter === 'garde'" 
+                    (click)="setFilter('garde')" class="filter-tab"></button>
+            <button pButton type="button" label="Astreinte" 
+                    [class.active]="activeFilter === 'astreinte'" 
+                    (click)="setFilter('astreinte')" class="filter-tab"></button>
+            <button pButton type="button" label="Repos" 
+                    [class.active]="activeFilter === 'repos'" 
+                    (click)="setFilter('repos')" class="filter-tab"></button>
+            <button pButton type="button" label="Avec règles" 
+                    [class.active]="activeFilter === 'regles'" 
+                    (click)="setFilter('regles')" class="filter-tab"></button>
+            <button pButton type="button" icon="pi pi-filter" label="Filtres avancés" 
+                    (click)="showAdvancedFilters = !showAdvancedFilters" 
+                    class="filter-tab advanced-toggle"></button>
+        </div>
+
+        <!-- Advanced filters -->
+        <div class="advanced-filters" *ngIf="showAdvancedFilters">
+            <div class="filter-row">
+                <div class="filter-field">
+                    <label>Service</label>
+                    <p-multiSelect [options]="services" [(ngModel)]="advancedFilters.services"
+                                   optionLabel="nom" placeholder="Tous" 
+                                   (onChange)="applyFilters()" appendTo="body"></p-multiSelect>
+                </div>
+                <div class="filter-field">
+                    <label>Durée</label>
+                    <p-dropdown [options]="dureeOptions" [(ngModel)]="advancedFilters.duree"
+                                optionLabel="label" optionValue="value" placeholder="Toutes"
+                                (onChange)="applyFilters()" [showClear]="true" appendTo="body"></p-dropdown>
+                </div>
+                <div class="filter-field">
+                    <label>Règle associée</label>
+                    <p-dropdown [options]="regles" [(ngModel)]="advancedFilters.regle"
+                                optionLabel="nom" placeholder="Toutes"
+                                (onChange)="applyFilters()" [showClear]="true" appendTo="body"></p-dropdown>
+                </div>
+                <div class="filter-field">
+                    <label>Statut</label>
+                    <p-dropdown [options]="statutOptions" [(ngModel)]="advancedFilters.statut"
+                                optionLabel="label" optionValue="value" placeholder="Tous"
+                                (onChange)="applyFilters()" appendTo="body"></p-dropdown>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="bulk-actions-bar" *ngIf="selectedPostes.length > 0 && rbac.canEdit('referentiel.postes')">
+        <div class="selection-info">
+            <p-checkbox [(ngModel)]="selectAll" [binary]="true" (onChange)="toggleSelectAll()"></p-checkbox>
+            <span>{{ selectedPostes.length }} poste(s) sélectionné(s)</span>
+        </div>
+        <div class="bulk-buttons">
+            <button pButton type="button" label="Activer" icon="pi pi-check" 
+                    class="p-button-success p-button-sm" (click)="bulkActivate()"></button>
+            <button pButton type="button" label="Désactiver" icon="pi pi-times" 
+                    class="p-button-warning p-button-sm" (click)="bulkDeactivate()"></button>
+            <button pButton type="button" label="Associer règle" icon="pi pi-link" 
+                    class="p-button-secondary p-button-sm" (click)="showBulkRuleDialog = true"></button>
+            <button pButton type="button" label="Exporter" icon="pi pi-download" 
+                    class="p-button-secondary p-button-sm" (click)="exportSelection()"></button>
+            <button pButton type="button" label="Supprimer" icon="pi pi-trash" 
+                    class="p-button-danger p-button-sm" (click)="confirmBulkDelete()"></button>
+        </div>
+    </div>
+
+    <!-- Grid View -->
+    <div class="postes-grid" *ngIf="viewMode === 'grid' && !loading">
+        <div class="poste-card" *ngFor="let poste of filteredPostes">
+            <div class="card-header" [style.background-color]="poste.couleur">
+                <p-checkbox [(ngModel)]="poste.selected" [binary]="true" 
+                           (onChange)="onPosteSelectionChange()" class="card-checkbox"></p-checkbox>
+                <div class="header-content">
+                    <h3 [style.color]="getTextColor(poste.couleur)">{{ poste.nom }}</h3>
+                    <span class="poste-code" [style.color]="getTextColor(poste.couleur)">{{ poste.code }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="info-row">
+                    <i class="pi pi-clock"></i>
+                    <span *ngIf="!isNonWorkingType(poste.type); else nonWorkingSchedule">
+                        {{ poste.heureDebut }} - {{ poste.heureFin }}{{ poste.jourSuivant ? ' (+1)' : '' }}
+                    </span>
+                    <ng-template #nonWorkingSchedule>Journée entière</ng-template>
+                </div>
+                <div class="info-row">
+                    <i class="pi pi-calendar"></i>
+                    <span *ngIf="!isNonWorkingType(poste.type); else nonWorkingDuration">
+                        Durée: {{ poste.duree }}h
+                    </span>
+                    <ng-template #nonWorkingDuration>Sans horaire</ng-template>
+                </div>
+                <div class="info-row">
+                    <span class="type-badge" [class]="'type-' + poste.type">{{ getTypeLabel(poste.type) }}</span>
+                </div>
+
+                <div class="info-row" *ngIf="poste.conditionsSaisonnieres?.length">
+                    <i class="pi pi-sun"></i>
+                    <span>{{ (poste.conditionsSaisonnieres || []).join(', ') }}</span>
+                </div>
+                
+                <div class="regles-section" *ngIf="poste.reglesAssociees && poste.reglesAssociees.length > 0">
+                    <div class="regles-header">
+                        <i class="pi pi-shield"></i>
+                        <span>Règles associées: {{ poste.reglesAssociees.length }}</span>
+                    </div>
+                    <ul class="regles-list">
+                        <li *ngFor="let regle of poste.reglesAssociees.slice(0, 3)">{{ regle.nom }}</li>
+                        <li *ngIf="poste.reglesAssociees.length > 3" class="more-regles">
+                            +{{ poste.reglesAssociees.length - 3 }} autre(s)
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="color-preview">
+                    <span>Aperçu:</span>
+                    <div class="color-sample" [style.background-color]="poste.couleur">
+                        <span [style.color]="getTextColor(poste.couleur)">{{ poste.code }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button pButton type="button" label="Modifier" icon="pi pi-pencil" 
+                        class="p-button-sm p-button-text" (click)="editPoste(poste)"></button>
+                <button pButton type="button" label="Dupliquer" icon="pi pi-copy" 
+                        class="p-button-sm p-button-text" (click)="duplicatePoste(poste)"></button>
+                <button pButton type="button" icon="pi pi-ellipsis-v" 
+                        class="p-button-sm p-button-text" (click)="openPosteMenu($event, poste)"></button>
+            </div>
+        </div>
+        
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="filteredPostes.length === 0">
+            <i class="pi pi-inbox empty-icon"></i>
+            <h3>{{ searchTerm || activeFilter !== 'all' ? 'Aucun résultat' : 'Aucun poste défini' }}</h3>
+            <p *ngIf="searchTerm || activeFilter !== 'all'">
+                Aucun poste ne correspond à votre recherche.<br>
+                Essayez d'autres mots-clés ou créez un nouveau poste.
+            </p>
+            <p *ngIf="!searchTerm && activeFilter === 'all'">
+                Commencez par créer votre premier poste horaire
+            </p>
+            <button pButton type="button" label="Créer un poste" icon="pi pi-plus" 
+                    (click)="openCreateDialog()"></button>
+        </div>
+    </div>
+
+    <!-- Table View -->
+    <div class="postes-table" *ngIf="viewMode === 'table' && !loading">
+        <p-table [value]="filteredPostes" [paginator]="true" [rows]="10" 
+                 [rowsPerPageOptions]="[10, 25, 50]" [showCurrentPageReport]="true"
+                 currentPageReportTemplate="{first} à {last} sur {totalRecords} postes"
+                 [(selection)]="selectedPostes" dataKey="id">
+            <ng-template pTemplate="header">
+                <tr>
+                    <th style="width: 3rem">
+                        <p-checkbox [(ngModel)]="selectAll" [binary]="true" (onChange)="toggleSelectAll()"></p-checkbox>
+                    </th>
+                    <th style="width: 80px">Aperçu</th>
+                    <th pSortableColumn="code">Code <p-sortIcon field="code"></p-sortIcon></th>
+                    <th pSortableColumn="nom">Nom <p-sortIcon field="nom"></p-sortIcon></th>
+                    <th>Type</th>
+                    <th pSortableColumn="heureDebut">Horaires <p-sortIcon field="heureDebut"></p-sortIcon></th>
+                    <th pSortableColumn="duree">Durée <p-sortIcon field="duree"></p-sortIcon></th>
+                    <th>Règles</th>
+                    <th>Services</th>
+                    <th>Conditions</th>
+                    <th>Statut</th>
+                    <th style="width: 120px">Actions</th>
+                </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-poste>
+                <tr>
+                    <td>
+                        <p-checkbox [(ngModel)]="poste.selected" [binary]="true" (onChange)="onPosteSelectionChange()"></p-checkbox>
+                    </td>
+                    <td>
+                        <div class="table-color-preview" [style.background-color]="poste.couleur" 
+                             [pTooltip]="poste.couleur"></div>
+                    </td>
+                    <td><strong>{{ poste.code }}</strong></td>
+                    <td>{{ poste.nom }}</td>
+                    <td><span class="type-badge" [class]="'type-' + poste.type">{{ getTypeLabel(poste.type) }}</span></td>
+                    <td>{{ isNonWorkingType(poste.type) ? 'Journée entière' : (poste.heureDebut + ' - ' + poste.heureFin + (poste.jourSuivant ? ' (+1)' : '')) }}</td>
+                    <td>{{ isNonWorkingType(poste.type) ? '—' : (poste.duree + 'h') }}</td>
+                    <td>
+                        <span class="badge-count" *ngIf="poste.reglesAssociees?.length">
+                            <i class="pi pi-shield"></i> {{ poste.reglesAssociees.length }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge-count" *ngIf="poste.servicesAutorises?.length">
+                            {{ poste.servicesAutorises.length }}
+                        </span>
+                        <span *ngIf="!poste.servicesAutorises?.length" class="text-muted">Tous</span>
+                    </td>
+                    <td>
+                        <span *ngIf="poste.conditionsSaisonnieres?.length; else noConditions">
+                            {{ (poste.conditionsSaisonnieres || []).join(', ') }}
+                        </span>
+                        <ng-template #noConditions>
+                            <span class="text-muted">Aucune</span>
+                        </ng-template>
+                    </td>
+                    <td>
+                        <span class="status-badge" [class.active]="poste.actif" [class.inactive]="!poste.actif">
+                            {{ poste.actif ? 'Actif' : 'Inactif' }}
+                        </span>
+                    </td>
+                    <td>
+                        <button pButton type="button" icon="pi pi-pencil" 
+                                class="p-button-sm p-button-text p-button-rounded" 
+                                (click)="editPoste(poste)" pTooltip="Modifier"></button>
+                        <button pButton type="button" icon="pi pi-copy" 
+                                class="p-button-sm p-button-text p-button-rounded" 
+                                (click)="duplicatePoste(poste)" pTooltip="Dupliquer"></button>
+                        <button pButton type="button" icon="pi pi-ellipsis-v" 
+                                class="p-button-sm p-button-text p-button-rounded" 
+                                (click)="openPosteMenu($event, poste)" pTooltip="Plus"></button>
+                    </td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="loading">
+        <div class="skeleton-grid">
+            <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6]">
+                <p-skeleton height="200px"></p-skeleton>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <p-menu #posteMenu [model]="posteMenuItems" [popup]="true" appendTo="body"></p-menu>
+
+    <!-- Create/Edit Dialog -->
+    <p-dialog [(visible)]="showPosteDialog" [modal]="true" [style]="{width: '750px'}" 
+              [header]="editMode ? 'Modifier le poste' : 'Créer un nouveau poste'" 
+              class="premium-dialog" [closable]="true" [draggable]="false" [resizable]="false">
+        
+        <p-tabView [(activeIndex)]="activeTabIndex">
+            <!-- Tab 1: Basic Info -->
+            <p-tabPanel header="Informations de base">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Code <span class="required">*</span></label>
+                        <input type="text" pInputText [(ngModel)]="currentPoste.code" 
+                               placeholder="Ex: MATIN, G24" class="w-100" />
+                    </div>
+                    <div class="form-field">
+                        <label>Nom <span class="required">*</span></label>
+                        <input type="text" pInputText [(ngModel)]="currentPoste.nom" 
+                               placeholder="Ex: Matin, Garde 24h" class="w-100" />
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <label>Description</label>
+                        <textarea pInputTextarea [(ngModel)]="currentPoste.description" 
+                                  rows="3" placeholder="Description détaillée du poste" class="w-100"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label>Type de poste <span class="required">*</span></label>
+                        <p-dropdown [options]="typePosteOptions" [(ngModel)]="currentPoste.type"
+                                    optionLabel="label" optionValue="value" placeholder="Choisir un type"
+                                    appendTo="body" class="w-100"></p-dropdown>
+                    </div>
+                    <div class="form-field">
+                        <label>Statut</label>
+                        <div class="status-toggle">
+                            <p-inputSwitch [(ngModel)]="currentPoste.actif"></p-inputSwitch>
+                            <span>{{ currentPoste.actif ? 'Actif' : 'Inactif' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </p-tabPanel>
+
+            <!-- Tab 2: Horaires -->
+            <p-tabPanel header="Horaires">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Heure de début <span class="required">*</span></label>
+                        <p-calendar [(ngModel)]="currentPoste.heureDebutDate" [timeOnly]="true" 
+                                    hourFormat="24" placeholder="HH:MM" appendTo="body" class="w-100"></p-calendar>
+                    </div>
+                    <div class="form-field">
+                        <label>Heure de fin <span class="required">*</span></label>
+                        <p-calendar [(ngModel)]="currentPoste.heureFinDate" [timeOnly]="true" 
+                                    hourFormat="24" placeholder="HH:MM" appendTo="body" class="w-100"></p-calendar>
+                    </div>
+                    <div class="form-field">
+                        <label>&nbsp;</label>
+                        <div class="checkbox-field">
+                            <p-checkbox [(ngModel)]="currentPoste.jourSuivant" [binary]="true" 
+                                       inputId="jourSuivant"></p-checkbox>
+                            <label for="jourSuivant">Fin le jour suivant</label>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label>Durée calculée</label>
+                        <input type="text" pInputText [value]="calculateDuree() + 'h'" 
+                               [disabled]="true" class="w-100" />
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <label>Tolérance pointage (minutes)</label>
+                        <p-inputNumber [(ngModel)]="currentPoste.tolerance" [min]="0" [max]="60" 
+                                      suffix=" min" class="w-100"></p-inputNumber>
+                    </div>
+                </div>
+            </p-tabPanel>
+
+            <!-- Tab 3: Apparence -->
+            <p-tabPanel header="Apparence">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Couleur <span class="required">*</span></label>
+                        <div class="color-picker-group">
+                            <p-colorPicker [(ngModel)]="currentPoste.couleur" 
+                                          (onChange)="onColorChange()" appendTo="body"></p-colorPicker>
+                            <input type="text" pInputText [(ngModel)]="currentPoste.couleur" 
+                                   placeholder="#FFFFFF" class="color-input" />
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label>Icône</label>
+                        <p-dropdown [options]="iconeOptions" [(ngModel)]="currentPoste.icone"
+                                    optionLabel="label" optionValue="value" placeholder="Choisir une icône"
+                                    appendTo="body" class="w-100">
+                            <ng-template pTemplate="selectedItem">
+                                <span *ngIf="currentPoste.icone">{{ currentPoste.icone }} {{ getIconeLabel(currentPoste.icone) }}</span>
+                            </ng-template>
+                            <ng-template let-icone pTemplate="item">
+                                <span>{{ icone.value }} {{ icone.label }}</span>
+                            </ng-template>
+                        </p-dropdown>
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <label>Aperçu</label>
+                        <div class="appearance-preview" [style.background-color]="currentPoste.couleur">
+                            <span [style.color]="getTextColor(currentPoste.couleur)">
+                                {{ currentPoste.icone }} {{ currentPoste.code || 'CODE' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </p-tabPanel>
+
+            <!-- Tab 4: Règles -->
+            <p-tabPanel header="Règles associées">
+                <div class="regles-tab">
+                    <div class="current-regles" *ngIf="currentPoste.reglesAssociees && currentPoste.reglesAssociees.length > 0">
+                        <h4>Règles appliquées à ce poste</h4>
+                        <div class="regle-item" *ngFor="let regle of currentPoste.reglesAssociees">
+                            <i class="pi pi-shield"></i>
+                            <span>{{ regle.nom }}</span>
+                            <button pButton type="button" icon="pi pi-times" 
+                                    class="p-button-sm p-button-text p-button-danger" 
+                                    (click)="removeRegle(regle)"></button>
+                        </div>
+                    </div>
+                    <div class="add-regle-section">
+                        <h4>Ajouter une règle</h4>
+                        <div class="search-regle">
+                            <span class="p-input-icon-left w-100">
+                                <i class="pi pi-search"></i>
+                                <input type="text" pInputText placeholder="Rechercher une règle..." 
+                                       [(ngModel)]="searchRegle" class="w-100" />
+                            </span>
+                        </div>
+                        <div class="regles-disponibles">
+                            <div class="regle-checkbox" *ngFor="let regle of getAvailableRegles()">
+                                <p-checkbox [value]="regle" [(ngModel)]="selectedRegles" 
+                                           [inputId]="'regle-' + regle.id"></p-checkbox>
+                                <label [for]="'regle-' + regle.id">{{ regle.nom }}</label>
+                            </div>
+                        </div>
+                        <button pButton type="button" label="Associer les règles sélectionnées" 
+                                icon="pi pi-check" class="p-button-sm" 
+                                (click)="associateRegles()" 
+                                [disabled]="selectedRegles.length === 0"></button>
+                        <div class="create-new-rule">
+                            <button pButton type="button" label="Créer une nouvelle règle" 
+                                    icon="pi pi-plus" class="p-button-sm p-button-text" 
+                                    (click)="openQuickRuleDialog()"></button>
+                        </div>
+                    </div>
+                </div>
+            </p-tabPanel>
+
+            <!-- Tab 5: Configuration avancée -->
+            <p-tabPanel header="Configuration avancée">
+                <div class="form-grid">
+                    <div class="form-field grid-full-width">
+                        <label>Services autorisés</label>
+                        <p-multiSelect [options]="services" [(ngModel)]="currentPoste.servicesAutorises"
+                                      optionLabel="nom" placeholder="Tous les services" 
+                                      appendTo="body" class="w-100"></p-multiSelect>
+                        <small>Laissez vide pour autoriser tous les services</small>
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <label>Compétences requises</label>
+                        <p-multiSelect
+                            [options]="competenceMultiSelectOptions"
+                            [(ngModel)]="currentPoste.competencesRequises"
+                            [group]="true"
+                            optionGroupLabel="label"
+                            optionGroupChildren="items"
+                            optionLabel="label"
+                            optionValue="value"
+                            defaultLabel="Sélectionner des compétences"
+                            display="chip"
+                            [filter]="true"
+                            filterBy="label"
+                            [showToggleAll]="false"
+                            appendTo="body"
+                            class="w-100"
+                            *ngIf="competenceMultiSelectOptions.length > 0; else noCompetenceCatalog">
+                        </p-multiSelect>
+                        <ng-template #noCompetenceCatalog>
+                            <small>Aucune compétence active disponible.</small>
+                        </ng-template>
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <label>Conditions de période</label>
+                        <div class="condition-grid">
+                            <div class="condition-item" *ngFor="let condition of conditionPosteOptions">
+                                <p-checkbox [value]="condition.value" [(ngModel)]="currentPoste.conditionsSaisonnieres"
+                                           [inputId]="'condition-' + condition.value"></p-checkbox>
+                                <label [for]="'condition-' + condition.value">{{ condition.label }}</label>
+                            </div>
+                        </div>
+                        <small>Cochez quand ce poste est applicable (Ramadhan, été, hiver, ...)</small>
+                    </div>
+                    <div class="form-field">
+                        <label>Effectif minimum</label>
+                        <p-inputNumber [(ngModel)]="currentPoste.effectifMin" [min]="0" [max]="100" class="w-100"></p-inputNumber>
+                    </div>
+                    <div class="form-field">
+                        <label>Effectif maximum</label>
+                        <p-inputNumber [(ngModel)]="currentPoste.effectifMax" [min]="0" [max]="100" class="w-100"></p-inputNumber>
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <div class="checkbox-field">
+                            <p-checkbox [(ngModel)]="currentPoste.chevauchementAutorise" [binary]="true" 
+                                       inputId="chevauchement"></p-checkbox>
+                            <label for="chevauchement">Autoriser le chevauchement</label>
+                            <small>Plusieurs personnes peuvent avoir le même poste simultanément</small>
+                        </div>
+                    </div>
+                    <div class="form-field grid-full-width">
+                        <div class="checkbox-field">
+                            <p-checkbox [(ngModel)]="currentPoste.fractionnable" [binary]="true" 
+                                       inputId="fractionnable"></p-checkbox>
+                            <label for="fractionnable">Poste fractionnable</label>
+                            <small>Le poste peut être divisé en plusieurs parties</small>
+                        </div>
+                    </div>
+                </div>
+            </p-tabPanel>
+        </p-tabView>
+
+        <ng-template pTemplate="footer">
+            <button pButton type="button" label="Annuler" icon="pi pi-times" 
+                    class="p-button-text" (click)="cancelPosteDialog()"></button>
+            <button pButton type="button" label="Tester le poste" icon="pi pi-eye" 
+                    class="p-button-secondary" (click)="showPreviewDialog = true"></button>
+            <button pButton type="button" label="Enregistrer" icon="pi pi-check" 
+                    (click)="savePoste()"></button>
+            <button pButton type="button" label="Enregistrer et créer un autre" icon="pi pi-plus" 
+                    (click)="saveAndCreateNew()" *ngIf="!editMode"></button>
+        </ng-template>
+    </p-dialog>
+
+    <!-- Preview Dialog -->
+    <p-dialog [(visible)]="showPreviewDialog" [modal]="true" [style]="{width: '600px'}" 
+              header="Aperçu du poste dans le planning" class="premium-dialog" [closable]="true">
+        <div class="preview-calendar">
+            <div class="preview-week">
+                <div class="preview-day" *ngFor="let day of previewDays">
+                    <div class="day-header">{{ day.label }}</div>
+                    <div class="day-content">
+                        <div class="preview-poste" [style.background-color]="currentPoste.couleur">
+                            <span [style.color]="getTextColor(currentPoste.couleur)">
+                                {{ currentPoste.icone }} {{ currentPoste.code }}
+                            </span>
+                            <small [style.color]="getTextColor(currentPoste.couleur)">
+                                {{ currentPoste.heureDebut }} - {{ currentPoste.heureFin }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="preview-info">
+                <p><strong>{{ currentPoste.nom }}</strong></p>
+                <p>Type: {{ getTypeLabel(currentPoste.type) }} • Durée: {{ calculateDuree() }}h</p>
+            </div>
+        </div>
+    </p-dialog>
+
+    <!-- Quick Rule Dialog -->
+    <p-dialog [(visible)]="showQuickRuleDialog" [modal]="true" [style]="{width: '500px'}" 
+              header="Créer une règle rapide" class="premium-dialog" [closable]="true">
+        <div class="form-grid single-column">
+            <div class="form-field">
+                <label>Nom de la règle <span class="required">*</span></label>
+                <input type="text" pInputText [(ngModel)]="newRegle.nom" placeholder="Ex: Repos après garde" class="w-100" />
+            </div>
+            <div class="form-field">
+                <label>Type de règle <span class="required">*</span></label>
+                <p-dropdown [options]="typeRegleOptions" [(ngModel)]="newRegle.type"
+                            optionLabel="label" optionValue="value" placeholder="Choisir un type"
+                            appendTo="body" class="w-100"></p-dropdown>
+            </div>
+            <div class="form-field">
+                <label>Valeur/Paramètre</label>
+                <input type="text" pInputText [(ngModel)]="newRegle.valeur" placeholder="Ex: 12 heures, 4 par mois" class="w-100" />
+            </div>
+            <div class="form-field">
+                <label>Description</label>
+                <textarea pInputTextarea [(ngModel)]="newRegle.description" rows="3" placeholder="Description de la règle" class="w-100"></textarea>
+            </div>
+        </div>
+        <ng-template pTemplate="footer">
+            <button pButton type="button" label="Annuler" icon="pi pi-times" 
+                    class="p-button-text" (click)="showQuickRuleDialog = false"></button>
+            <button pButton type="button" label="Créer et associer" icon="pi pi-check" 
+                    (click)="createAndAssociateRule()"></button>
+        </ng-template>
+    </p-dialog>
+
+    <!-- Import Dialog -->
+    <p-dialog [(visible)]="showImportDialog" [modal]="true" [style]="{width: '500px'}" 
+              header="Importer des postes" class="premium-dialog" [closable]="true">
+        <div class="import-section">
+            <p-fileUpload mode="basic" chooseLabel="Sélectionner un fichier" 
+                         accept=".csv,.xlsx" [auto]="false" 
+                         (onSelect)="onFileSelect($event)"></p-fileUpload>
+            <p class="import-info">Formats acceptés: CSV, Excel</p>
+        </div>
+        <ng-template pTemplate="footer">
+            <button pButton type="button" label="Annuler" icon="pi pi-times" 
+                    class="p-button-text" (click)="showImportDialog = false"></button>
+            <button pButton type="button" label="Importer" icon="pi pi-upload" 
+                    (click)="importPostes()"></button>
+        </ng-template>
+    </p-dialog>
+
+    <!-- Bulk Rule Dialog -->
+    <p-dialog [(visible)]="showBulkRuleDialog" [modal]="true" [style]="{width: '500px'}" 
+              header="Associer une règle aux postes sélectionnés" class="premium-dialog" [closable]="true">
+        <div class="form-field">
+            <label>Règle à associer <span class="required">*</span></label>
+            <p-dropdown [options]="regles" [(ngModel)]="bulkRegle" optionLabel="nom" 
+                        placeholder="Choisir une règle" appendTo="body" class="w-100"></p-dropdown>
+        </div>
+        <ng-template pTemplate="footer">
+            <button pButton type="button" label="Annuler" icon="pi pi-times" 
+                    class="p-button-text" (click)="showBulkRuleDialog = false"></button>
+            <button pButton type="button" label="Associer" icon="pi pi-check" 
+                    (click)="bulkAssociateRule()"></button>
+        </ng-template>
+    </p-dialog>
+
+    <!-- Toast -->
+    <p-toast></p-toast>
+</div>

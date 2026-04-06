@@ -1,0 +1,6 @@
+<div class="toast-stack" *ngIf="toasts.length > 0">
+    <article class="toast" *ngFor="let toast of toasts" [ngClass]="toast.type">
+        <span>{{ toast.message }}</span>
+        <button type="button" (click)="dismiss(toast.id)">✖</button>
+    </article>
+</div>

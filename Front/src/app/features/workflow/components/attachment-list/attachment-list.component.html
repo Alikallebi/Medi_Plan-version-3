@@ -1,0 +1,32 @@
+<section class="attachment-section">
+    <div class="state" *ngIf="isLoading">Chargement des pièces jointes...</div>
+
+    <div class="state error" *ngIf="!isLoading && hasError">
+        <p>{{ errorMessage }}</p>
+        <button type="button" class="btn" (click)="retry.emit()">Réessayer</button>
+    </div>
+
+    <ng-container *ngIf="!isLoading && !hasError">
+        <label class="upload-btn" [attr.aria-disabled]="isUploading">
+            📎 Joindre un fichier
+            <input type="file" [disabled]="isUploading" (change)="onFileChange($event)" />
+        </label>
+
+        <ul class="attachment-list" *ngIf="attachments.length > 0; else emptyState">
+            <li *ngFor="let item of attachments" class="attachment-item">
+                <div>
+                    <strong>{{ item.fileName }}</strong>
+                    <small>{{ item.uploadedBy }} · {{ item.uploadedAt | date:'dd/MM/yyyy HH:mm' }}</small>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn" (click)="onPreview(item)">Voir</button>
+                    <button type="button" class="btn danger" (click)="removeAttachment.emit(item.id)">Supprimer</button>
+                </div>
+            </li>
+        </ul>
+
+        <ng-template #emptyState>
+            <p class="empty">Aucun document associé.</p>
+        </ng-template>
+    </ng-container>
+</section>

@@ -1,0 +1,10 @@
+<div class="planning-preview" *ngIf="planning">
+    <h4>Aperçu du planning</h4>
+    <p>Semaine du {{ planning.weekStart | date:'dd/MM/yyyy' }} au {{ planning.weekEnd | date:'dd/MM/yyyy' }}</p>
+    <p>{{ assignmentCount }} affectation(s)</p>
+
+    <div class="actions">
+        <button type="button" class="btn" (click)="onOpenPlanning()">📅 Voir le planning complet</button>
+        <button type="button" class="btn" (click)="onExportPdf()">📥 Exporter PDF</button>
+    </div>
+</div>

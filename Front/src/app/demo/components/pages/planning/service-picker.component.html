@@ -1,0 +1,111 @@
+<div class="sp-root" [class.sp-open]="isOpen">
+
+    <!-- ══════════════════════════════════════════
+         BOUTON DÉCLENCHEUR
+    ══════════════════════════════════════════ -->
+    <button type="button" class="sp-trigger" (click)="toggle()"
+            [title]="currentService?.name || 'Sélectionner un service'">
+        <!-- pastille couleur -->
+        <span class="sp-dot" [style.background]="getCardAccent(currentServiceId)"></span>
+        <!-- icône du service -->
+        <i class="sp-trigger-icon" [ngClass]="currentService?.icon || 'pi pi-hospital'"
+           [style.color]="getCardAccent(currentServiceId)"></i>
+        <!-- nom du service -->
+        <span class="sp-trigger-name">{{ currentService?.name || 'Choisir un service' }}</span>
+        <!-- badge personnel -->
+        <span class="sp-trigger-badge" *ngIf="currentService && currentServiceId !== 'all'">
+            <i class="pi pi-users"></i>{{ currentService.staffCount }}
+        </span>
+        <!-- chevron -->
+        <i class="pi pi-chevron-down sp-chevron" [class.sp-rotated]="isOpen"></i>
+    </button>
+
+    <!-- ══════════════════════════════════════════
+         PANNEAU DROPDOWN
+    ══════════════════════════════════════════ -->
+    <div class="sp-panel" *ngIf="isOpen" (click)="$event.stopPropagation()">
+
+        <!-- En-tête : recherche + favoris -->
+        <div class="sp-panel-head">
+            <div class="sp-search-box">
+                <i class="pi pi-search sp-search-icon"></i>
+                <input type="text" class="sp-search-input"
+                       placeholder="Rechercher un service..."
+                       [(ngModel)]="searchQuery" />
+                <button *ngIf="searchQuery" type="button" class="sp-clear-btn"
+                        (click)="searchQuery = ''">
+                    <i class="pi pi-times"></i>
+                </button>
+            </div>
+            <button type="button" class="sp-fav-toggle"
+                    [class.sp-fav-active]="showFavoritesOnly"
+                    (click)="showFavoritesOnly = !showFavoritesOnly"
+                    title="Afficher les favoris uniquement">
+                <i [ngClass]="showFavoritesOnly ? 'pi pi-star-fill' : 'pi pi-star'"></i>
+            </button>
+        </div>
+
+        <!-- Compteur -->
+        <div class="sp-panel-count">
+            <span>{{ filteredServices.length }} service{{ filteredServices.length > 1 ? 's' : '' }}</span>
+        </div>
+
+        <!-- Grille de cartes -->
+        <div class="sp-grid">
+            <button type="button" class="sp-card"
+                    *ngFor="let svc of filteredServices"
+                    [class.sp-card-selected]="svc.id === currentServiceId"
+                    [ngStyle]="{
+                        background: getCardBg(svc.id),
+                        borderColor: svc.id === currentServiceId ? getCardAccent(svc.id) : 'transparent'
+                    }"
+                    (click)="selectService(svc.id)">
+
+                <!-- barre d'accent gauche -->
+                <span class="sp-card-bar" [style.background]="getCardAccent(svc.id)"></span>
+
+                <!-- cercle icône -->
+                <div class="sp-card-circle"
+                     [ngStyle]="{
+                         background: getCardAccent(svc.id) + '22',
+                         border: '2px solid ' + getCardAccent(svc.id) + '44'
+                     }">
+                    <i [ngClass]="svc.icon" [style.color]="getCardAccent(svc.id)"></i>
+                </div>
+
+                <!-- infos -->
+                <div class="sp-card-info">
+                    <span class="sp-card-name" [style.color]="getCardText(svc.id)">
+                        {{ svc.name }}
+                    </span>
+                    <div class="sp-card-meta">
+                        <span class="sp-card-staff">
+                            <i class="pi pi-users"></i> {{ svc.staffCount }}
+                        </span>
+                        <span class="sp-card-status"
+                              [class.sp-status-active]="svc.status === 'active'"
+                              [class.sp-status-inactive]="svc.status === 'inactive'">
+                            {{ svc.status === 'active' ? '● Actif' : '○ Inactif' }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- étoile favoris -->
+                <i class="pi pi-star-fill sp-card-fav" *ngIf="svc.isFavorite"
+                   [style.color]="getCardAccent(svc.id)"></i>
+
+                <!-- coche sélectionné -->
+                <span class="sp-card-check" *ngIf="svc.id === currentServiceId"
+                      [style.background]="getCardAccent(svc.id)">
+                    <i class="pi pi-check"></i>
+                </span>
+            </button>
+
+            <!-- État vide -->
+            <div class="sp-empty" *ngIf="filteredServices.length === 0">
+                <i class="pi pi-inbox"></i>
+                <span>Aucun service trouvé</span>
+            </div>
+        </div>
+    </div>
+</div>

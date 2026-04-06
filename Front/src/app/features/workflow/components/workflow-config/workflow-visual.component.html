@@ -1,0 +1,56 @@
+<div class="workflow-diagram">
+  <div class="workflow-step">
+    <div class="step-icon">
+      <img src="assets/icons/form.svg" alt="Formulaire" />
+    </div>
+    <div class="step-label">Formulaire de commande</div>
+  </div>
+  <svg class="arrow" width="60" height="20">
+    <line x1="0" y1="10" x2="60" y2="10" stroke="#009688" stroke-width="2" marker-end="url(#arrowhead)" />
+    <defs>
+      <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#009688" />
+      </marker>
+    </defs>
+  </svg>
+  <div class="workflow-step validation-step">
+    <div class="step-title">Validation</div>
+    <div class="validator-info">
+      <img class="validator-photo" [src]="validatorPhotoUrl" alt="Photo validateur" />
+      <div class="validator-name">{{ validatorName }}</div>
+    </div>
+  </div>
+  <svg class="arrow" width="60" height="20">
+    <line x1="0" y1="10" x2="60" y2="10" stroke="#009688" stroke-width="2" marker-end="url(#arrowhead)" />
+    <defs>
+      <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#009688" />
+      </marker>
+    </defs>
+  </svg>
+  <div class="workflow-branch">
+    <div class="workflow-step action-step">
+      <div class="step-icon success">
+        <img src="assets/icons/validate.svg" alt="Valider" />
+      </div>
+      <div class="step-label">Valider</div>
+    </div>
+    <div class="workflow-step action-step">
+      <div class="step-icon reject">
+        <img src="assets/icons/reject.svg" alt="Rejeter" />
+      </div>
+      <div class="step-label">Rejeter</div>
+    </div>
+  </div>
+  <svg class="arrow" width="60" height="20">
+    <line x1="0" y1="10" x2="60" y2="10" stroke="#009688" stroke-width="2" marker-end="url(#arrowhead)" />
+    <defs>
+      <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#009688" />
+      </marker>
+    </defs>
+  </svg>
+  <div class="workflow-step">
+    <div class="step-label">Fin</div>
+  </div>
+</div>

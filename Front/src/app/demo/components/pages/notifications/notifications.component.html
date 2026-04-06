@@ -1,0 +1,70 @@
+<!-- notifications.component.html -->
+<div class="notifications-page">
+  <div class="notifications-header">
+    <div class="header-title">
+      <i class="pi pi-bell"></i>
+      <h1>Notifications</h1>
+      <span class="badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
+    </div>
+    <div class="header-actions">
+      <div class="filter-group">
+        <label class="checkbox-label">
+          <input type="checkbox" [checked]="unreadOnly" (change)="onUnreadOnlyChange($event)" />
+          <span>Uniquement les non lues</span>
+        </label>
+      </div>
+      <button class="btn-outline" (click)="markAllAsRead()" [disabled]="unreadCount === 0">
+        <i class="pi pi-check-circle"></i> Tout marquer comme lu
+      </button>
+    </div>
+  </div>
+
+  <div class="stats-summary" *ngIf="!loading">
+    <div class="stat-card">
+      <span class="stat-value">{{ notifications.length }}</span>
+      <span class="stat-label">Total</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{ unreadCount }}</span>
+      <span class="stat-label">Non lues</span>
+    </div>
+  </div>
+
+  <div class="loading-state" *ngIf="loading">
+    <i class="pi pi-spin pi-spinner"></i>
+    <p>Chargement des notifications...</p>
+  </div>
+
+  <div class="empty-state" *ngIf="!loading && filteredNotifications.length === 0">
+    <i class="pi pi-inbox"></i>
+    <h3>Aucune notification</h3>
+    <p>{{ unreadOnly ? 'Aucune notification non lue.' : 'Vous n’avez aucune notification pour le moment.' }}</p>
+  </div>
+
+  <div class="notifications-list" *ngIf="!loading && filteredNotifications.length > 0">
+    <div
+      *ngFor="let n of filteredNotifications"
+      class="notification-card"
+      [class.read]="n.isRead"
+      (click)="openNotification(n)">
+      <div class="notification-icon" [ngClass]="getNotificationTypeClass(n.type)">
+        <i [class]="getNotificationIcon(n.type)"></i>
+      </div>
+      <div class="notification-content">
+        <div class="notification-header">
+          <h3>{{ n.titre || n.type }}</h3>
+          <span class="date">{{ formatDate(n.createdAt) }}</span>
+        </div>
+        <p class="message">{{ n.message }}</p>
+        <div class="notification-footer">
+          <span class="action-badge" [ngClass]="getActionClass(n.type)">
+            {{ getActionLabel(n.type) }}
+          </span>
+          <span class="status-badge" [class.read]="n.isRead">
+            {{ n.isRead ? 'Lue' : 'Non lue' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

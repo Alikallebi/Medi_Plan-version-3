@@ -1,0 +1,490 @@
+<div class="roles-permissions-container">
+  <!-- En-tête de page -->
+  <div class="page-header">
+    <div class="header-title-section">
+      <h1>
+        <i class="pi pi-shield"></i>
+        Gestion des rôles et permissions
+      </h1>
+      <p class="header-subtitle">Définissez les niveaux d'accès et les autorisations</p>
+    </div>
+    
+    <div class="header-actions">
+      <button pButton type="button" label="Nouveau rôle" icon="pi pi-plus" class="p-button-primary" *ngIf="rbac.canAdmin('admin.roles')" (click)="createRole()"></button>
+      <button pButton type="button" label="Importer" icon="pi pi-upload" class="p-button-outlined" *ngIf="rbac.canAdmin('admin.roles')" (click)="importRoles()"></button>
+      <button pButton type="button" label="Exporter" icon="pi pi-download" class="p-button-outlined" (click)="exportRoles()"></button>
+      <button pButton type="button" icon="pi pi-question-circle" class="p-button-rounded p-button-text" (click)="showHelp()" pTooltip="Aide" tooltipPosition="bottom"></button>
+    </div>
+  </div>
+
+  <!-- Statistiques rapides -->
+  <div class="quick-stats">
+    <div class="stat-card">
+      <i class="pi pi-shield"></i>
+      <div class="stat-content">
+        <span class="stat-value">{{ stats.totalRoles }}</span>
+        <span class="stat-label">rôles actifs</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <i class="pi pi-users"></i>
+      <div class="stat-content">
+        <span class="stat-value">{{ stats.totalUsers }}</span>
+        <span class="stat-label">utilisateurs</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <i class="pi pi-star"></i>
+      <div class="stat-content">
+        <span class="stat-value">{{ stats.customRoles }}</span>
+        <span class="stat-label">rôles personnalisés</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="main-content">
+    <!-- Colonne gauche : Liste des rôles -->
+    <div class="roles-sidebar">
+      <div class="sidebar-search">
+        <span class="p-input-icon-left">
+          <i class="pi pi-search"></i>
+          <input type="text" pInputText placeholder="Rechercher un rôle..." [(ngModel)]="searchQuery" (input)="onSearch()" class="search-input">
+        </span>
+      </div>
+
+      <div class="sidebar-filters">
+        <button type="button" [class.active]="roleFilter === 'all'" (click)="setRoleFilter('all')" class="filter-btn">Tous</button>
+        <button type="button" [class.active]="roleFilter === 'system'" (click)="setRoleFilter('system')" class="filter-btn">Système</button>
+        <button type="button" [class.active]="roleFilter === 'custom'" (click)="setRoleFilter('custom')" class="filter-btn">Personnalisés</button>
+        <button type="button" [class.active]="roleFilter === 'withUsers'" (click)="setRoleFilter('withUsers')" class="filter-btn">Avec utilisateurs</button>
+      </div>
+
+      <div class="roles-list">
+        <div class="role-category">
+          <h3>RÔLES SYSTÈME ({{ (filteredRoles | filter: 'type' : 'system').length }})</h3>
+          <div *ngFor="let role of (filteredRoles | filter: 'type' : 'system')" class="role-item" [class.selected]="selectedRole?.id === role.id" [class.system]="true" (click)="selectRole(role)">
+            <div class="role-indicator" [style.backgroundColor]="role.color">
+              <i class="pi" [ngClass]="getRoleIcon(role)"></i>
+            </div>
+            <div class="role-info">
+              <span class="role-name">{{ role.name }}</span>
+              <span class="role-users-count">{{ role.usersCount }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="role-category">
+          <h3>RÔLES PERSONNALISÉS ({{ (filteredRoles | filter: 'type' : 'custom').length }})</h3>
+          <div *ngFor="let role of (filteredRoles | filter: 'type' : 'custom')" class="role-item" [class.selected]="selectedRole?.id === role.id" [class.custom]="true" (click)="selectRole(role)">
+            <div class="role-indicator" [style.backgroundColor]="role.color">
+              <i class="pi" [ngClass]="getRoleIcon(role)"></i>
+            </div>
+            <div class="role-info">
+              <span class="role-name">{{ role.name }}</span>
+              <span class="role-users-count">{{ role.usersCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonne droite : Détail du rôle -->
+    <div class="role-detail">
+      <div *ngIf="!selectedRole" class="empty-state">
+        <i class="pi pi-arrow-left"></i>
+        <h3>Sélectionnez un rôle dans la liste</h3>
+        <p>Cliquez sur un rôle pour voir ses détails et configurer ses permissions</p>
+      </div>
+
+      <div *ngIf="selectedRole" class="role-detail-content">
+        <!-- En-tête du rôle -->
+        <div class="role-header">
+          <button type="button" class="back-button" (click)="deselectRole()">
+            <i class="pi pi-arrow-left"></i> Retour à la liste
+          </button>
+
+          <div class="role-title-section">
+            <div class="role-badge" [style.backgroundColor]="selectedRole.color">
+              <i class="pi" [ngClass]="getRoleIcon(selectedRole)"></i>
+            </div>
+            <div class="role-title-info">
+              <h2>{{ selectedRole.name }}</h2>
+              <p class="role-description">{{ selectedRole.description }}</p>
+            </div>
+          </div>
+
+          <div class="role-metadata">
+            <div class="metadata-item">
+              <span class="label">Type:</span>
+              <span class="value">{{ selectedRole.type === 'system' ? 'Rôle système' : 'Rôle personnalisé' }}</span>
+            </div>
+            <div class="metadata-item">
+              <span class="label">Créé le:</span>
+              <span class="value">{{ formatDate(selectedRole.createdAt) }}</span>
+            </div>
+            <div class="metadata-item">
+              <span class="label">Dernière modif:</span>
+              <span class="value">{{ formatDate(selectedRole.updatedAt) }} <span *ngIf="selectedRole.updatedBy">par {{ selectedRole.updatedBy }}</span></span>
+            </div>
+            <div class="metadata-item">
+              <span class="label">Utilisateurs:</span>
+              <span class="value">{{ getSelectedRoleUsersCount() }}</span>
+              <small class="users-preview-loading" *ngIf="!roleUsersLoaded">Chargement des utilisateurs...</small>
+
+              <div class="users-preview" *ngIf="roleUsersLoaded && roleUsers.length > 0">
+                <span class="user-chip" *ngFor="let user of getRoleUsersPreview()">{{ user.prenom }} {{ user.nom }}</span>
+                <span class="user-chip more" *ngIf="getRemainingRoleUsersCount() > 0">+{{ getRemainingRoleUsersCount() }} autres</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="role-actions" *ngIf="selectedRole.type !== 'system' && rbac.canAdmin('admin.roles')">
+            <button pButton type="button" label="Modifier" icon="pi pi-pencil" class="p-button-outlined" (click)="editRole()"></button>
+            <button pButton type="button" label="Dupliquer" icon="pi pi-copy" class="p-button-outlined" (click)="duplicateRole()"></button>
+            <button pButton type="button" label="Tester" icon="pi pi-play" class="p-button-outlined" (click)="testPermissions()"></button>
+            <button pButton type="button" label="Supprimer" icon="pi pi-trash" class="p-button-outlined p-button-danger" (click)="deleteRole()" [disabled]="getSelectedRoleUsersCount() > 0"></button>
+          </div>
+          
+          <div class="role-actions" *ngIf="selectedRole.type === 'system'">
+            <button pButton type="button" label="Dupliquer" icon="pi pi-copy" class="p-button-outlined" *ngIf="rbac.canAdmin('admin.roles')" (click)="duplicateRole()"></button>
+            <button pButton type="button" label="Tester" icon="pi pi-play" class="p-button-outlined" (click)="testPermissions()"></button>
+          </div>
+
+          <div class="system-role-notice" *ngIf="selectedRole.type === 'system'">
+            <i class="pi pi-info-circle"></i>
+            Ce rôle système ne peut pas être modifié, seulement dupliqué
+          </div>
+        </div>
+
+        <!-- Onglets -->
+        <div class="tabs-menu">
+          <button type="button" [class.active]="activeTab === 'permissions'" (click)="setActiveTab('permissions')" class="tab-btn">
+            <i class="pi pi-lock"></i> Permissions
+          </button>
+          <button type="button" [class.active]="activeTab === 'users'" (click)="setActiveTab('users')" class="tab-btn">
+            <i class="pi pi-users"></i> Utilisateurs ({{ getSelectedRoleUsersCount() }})
+          </button>
+          <button type="button" [class.active]="activeTab === 'hierarchy'" (click)="setActiveTab('hierarchy')" class="tab-btn">
+            <i class="pi pi-sitemap"></i> Héritage
+          </button>
+          <button type="button" [class.active]="activeTab === 'history'" (click)="setActiveTab('history')" class="tab-btn">
+            <i class="pi pi-history"></i> Historique
+          </button>
+        </div>
+
+        <!-- Contenu des onglets -->
+        <div class="tab-content">
+          <!-- Onglet Permissions -->
+          <div *ngIf="activeTab === 'permissions'" class="permissions-tab">
+            <div class="permissions-actions" *ngIf="rbac.canEdit('admin.roles')">
+              <button pButton type="button" label="📖 Tout Lecture" class="p-button-sm p-button-outlined" (click)="setAllPermissions('read')"></button>
+              <button pButton type="button" label="✏️ Tout Écriture" class="p-button-sm p-button-outlined" (click)="setAllPermissions('write')"></button>
+              <button pButton type="button" label="✅ Tout Validation" class="p-button-sm p-button-outlined" (click)="setAllPermissions('validate')"></button>
+              <button pButton type="button" label="👑 Tout Admin" class="p-button-sm p-button-outlined p-button-warning" (click)="setAllPermissions('admin')"></button>
+              <button pButton type="button" label="❌ Tout Aucun" class="p-button-sm p-button-outlined p-button-danger" (click)="setAllPermissions('none')"></button>
+            </div>
+
+            <div class="permissions-legend">
+              <div class="legend-item" *ngFor="let level of permissionLevels">
+                <i class="pi" [ngClass]="level.icon" [style.color]="level.color"></i>
+                <span>{{ level.label }}</span>
+              </div>
+            </div>
+
+            <div class="permissions-categories">
+              <div *ngFor="let category of permissionCategories" class="permission-category">
+                <div class="category-header" (click)="toggleCategory(category)">
+                  <i class="pi" [ngClass]="category.icon"></i>
+                  <h4>{{ category.name }}</h4>
+                  <i class="pi" [ngClass]="category.expanded ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+                </div>
+
+                <div *ngIf="category.expanded" class="category-permissions">
+                  <div class="permissions-table">
+                    <div class="table-header">
+                      <span class="col-permission">Permission</span>
+                      <span class="col-level">Aucun</span>
+                      <span class="col-level">Lecture</span>
+                      <span class="col-level">Écriture</span>
+                      <span class="col-level">Validation</span>
+                      <span class="col-level">Admin</span>
+                    </div>
+                    
+                    <div *ngFor="let permission of category.permissions" class="table-row">
+                      <div class="permission-info">
+                        <span class="permission-name">{{ permission.name }}</span>
+                        <small class="permission-desc">{{ permission.description }}</small>
+                      </div>
+                      <div class="permission-level" (click)="setPermissionLevel(permission.id, 'none')">
+                        <i class="pi pi-circle-fill" [class.active]="getPermissionLevel(permission.id) === 'none'"></i>
+                      </div>
+                      <div class="permission-level" (click)="setPermissionLevel(permission.id, 'read')">
+                        <i class="pi pi-circle-fill" [class.active]="getPermissionLevel(permission.id) === 'read'"></i>
+                      </div>
+                      <div class="permission-level" (click)="setPermissionLevel(permission.id, 'write')">
+                        <i class="pi pi-circle-fill" [class.active]="getPermissionLevel(permission.id) === 'write'"></i>
+                      </div>
+                      <div class="permission-level" (click)="setPermissionLevel(permission.id, 'validate')">
+                        <i class="pi pi-circle-fill" [class.active]="getPermissionLevel(permission.id) === 'validate'"></i>
+                      </div>
+                      <div class="permission-level" (click)="setPermissionLevel(permission.id, 'admin')">
+                        <i class="pi pi-circle-fill" [class.active]="getPermissionLevel(permission.id) === 'admin'"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Onglet Utilisateurs -->
+          <div *ngIf="activeTab === 'users'" class="users-tab">
+            <div class="users-header">
+              <h3 *ngIf="!roleUsersLoaded">Chargement des utilisateurs du rôle {{ selectedRole.name }}...</h3>
+              <h3 *ngIf="roleUsersLoaded && roleUsers.length === 0">Aucun utilisateur avec le rôle {{ selectedRole.name }}</h3>
+              <h3 *ngIf="roleUsersLoaded && roleUsers.length > 0">
+                <span>Utilisateurs du rôle {{ selectedRole.name }} :</span>
+                <span class="users-inline-list">
+                  <ng-container *ngFor="let user of roleUsers; let last = last">
+                    {{ user.prenom }} {{ user.nom }}<span *ngIf="!last">, </span>
+                  </ng-container>
+                </span>
+              </h3>
+              <button pButton type="button" label="Ajouter des utilisateurs" icon="pi pi-plus" class="p-button-primary" *ngIf="rbac.canAdmin('admin.roles')" (click)="addUsers()"></button>
+            </div>
+
+            <div class="users-list">
+              <div *ngFor="let user of roleUsers" class="user-item">
+                <div class="user-avatar">
+                  <i class="pi pi-user"></i>
+                </div>
+                <div class="user-info">
+                  <div class="user-name">{{ user.prenom }} {{ user.nom }}</div>
+                  <div class="user-metadata">
+                    <span>Matricule: {{ user.matricule }}</span>
+                    <span class="separator">|</span>
+                    <span>{{ user.service }}</span>
+                  </div>
+                </div>
+                <div class="user-status" [class.actif]="user.status === 'actif'" [class.inactif]="user.status === 'inactif'">
+                  {{ user.status }}
+                </div>
+                <button type="button" class="user-action-btn" (click)="removeUserFromRole(user.id)">
+                  <i class="pi pi-times"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Onglet Héritage -->
+          <div *ngIf="activeTab === 'hierarchy'" class="hierarchy-tab">
+            <div class="hierarchy-info">
+              <h3>Hiérarchie des rôles</h3>
+              <p>Affichage réel de l'héritage du rôle sélectionné</p>
+            </div>
+
+            <div class="hierarchy-tree dynamic-tree" *ngIf="selectedRole">
+              <div class="hierarchy-column" *ngIf="getParentRole(selectedRole) as parentRole; else noParentRole">
+                <span class="hierarchy-label">Rôle parent</span>
+                <div class="node-content parent-node">
+                  <i class="pi" [ngClass]="getRoleIcon(parentRole)"></i>
+                  <span>{{ parentRole.name }}</span>
+                </div>
+              </div>
+
+              <ng-template #noParentRole>
+                <div class="hierarchy-column empty-column">
+                  <span class="hierarchy-label">Rôle parent</span>
+                  <div class="node-content ghost-node">Aucun rôle parent</div>
+                </div>
+              </ng-template>
+
+              <div class="hierarchy-column current-column">
+                <span class="hierarchy-label">Rôle sélectionné</span>
+                <div class="node-content current-node" [style.border-color]="selectedRole.color" [style.color]="selectedRole.color">
+                  <i class="pi" [ngClass]="getRoleIcon(selectedRole)"></i>
+                  <span>{{ selectedRole.name }}</span>
+                </div>
+                <small *ngIf="getParentRole(selectedRole)">Permissions héritées possibles : {{ getInheritedPermissionsCount(selectedRole) }}</small>
+              </div>
+
+              <div class="hierarchy-column" *ngIf="getChildRoles(selectedRole).length > 0; else noChildRoles">
+                <span class="hierarchy-label">Rôles enfants</span>
+                <div class="children-list">
+                  <div class="node-content child-node" *ngFor="let childRole of getChildRoles(selectedRole)">
+                    <i class="pi" [ngClass]="getRoleIcon(childRole)"></i>
+                    <span>{{ childRole.name }}</span>
+                    <small>{{ childRole.usersCount }} utilisateur(s)</small>
+                  </div>
+                </div>
+              </div>
+
+              <ng-template #noChildRoles>
+                <div class="hierarchy-column empty-column">
+                  <span class="hierarchy-label">Rôles enfants</span>
+                  <div class="node-content ghost-node">Aucun rôle enfant</div>
+                </div>
+              </ng-template>
+            </div>
+
+            <div class="inheritance-info" *ngIf="getParentRole(selectedRole) as parentRole">
+              <h4>Hérite des permissions de :</h4>
+              <div class="parent-role detailed-parent">
+                <div class="parent-role-main">
+                  <i class="pi" [ngClass]="getRoleIcon(parentRole)"></i>
+                  <strong>{{ parentRole.name }}</strong>
+                </div>
+                <span>{{ getInheritedPermissionsCount(selectedRole) }} permission(s) potentiellement héritée(s)</span>
+              </div>
+            </div>
+
+            <div class="inheritance-info no-inheritance" *ngIf="!hasInheritance(selectedRole)">
+              <h4>Aucun héritage configuré</h4>
+              <p>Ce rôle n'a ni parent ni rôle enfant pour le moment.</p>
+            </div>
+          </div>
+
+          <!-- Onglet Historique -->
+          <div *ngIf="activeTab === 'history'" class="history-tab">
+            <div class="history-timeline">
+              <div *ngFor="let event of roleHistory" class="timeline-item">
+                <div class="timeline-marker">
+                  <i class="pi" [ngClass]="event.icon"></i>
+                </div>
+                <div class="timeline-content">
+                  <h4>{{ event.description }}</h4>
+                  <small>{{ formatDateTime(event.date) }} - Par {{ event.by }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modales -->
+<p-toast position="top-right"></p-toast>
+
+<!-- Modale Créer/Modifier rôle -->
+<p-dialog [(visible)]="showCreateRoleModal" [header]="'Créer un nouveau rôle'" [modal]="true" [style]="{ width: '600px' }">
+  <div class="modal-form">
+    <div class="form-group">
+      <label>Nom du rôle *</label>
+      <input type="text" pInputText [(ngModel)]="roleForm.name" placeholder="Ex: Validateur RH" class="full-width">
+    </div>
+    
+    <div class="form-group">
+      <label>Description</label>
+      <textarea pInputTextarea [(ngModel)]="roleForm.description" rows="3" placeholder="Description détaillée du rôle" class="full-width"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Rôle parent</label>
+      <select [(ngModel)]="roleForm.parentRoleId" class="full-width parent-role-select" title="Rôle parent" aria-label="Rôle parent">
+        <option [ngValue]="null">Aucun héritage</option>
+        <option *ngFor="let role of getAvailableParentRoles()" [ngValue]="role.id">{{ role.name }}</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label>Type</label>
+      <div class="radio-group">
+        <p-radioButton name="type" value="system" [(ngModel)]="roleForm.type" label="Rôle système"></p-radioButton>
+        <p-radioButton name="type" value="custom" [(ngModel)]="roleForm.type" label="Rôle personnalisé"></p-radioButton>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <div class="form-group">
+        <label>Couleur</label>
+        <input type="color" [(ngModel)]="roleForm.color" class="color-picker">
+      </div>
+      
+      <div class="form-group">
+        <label>Statut</label>
+        <p-inputSwitch [(ngModel)]="roleForm.isActive"></p-inputSwitch>
+      </div>
+    </div>
+  </div>
+  
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Annuler" (click)="closeModals()" class="p-button-text"></button>
+    <button pButton type="button" label="Créer" (click)="saveRole()" class="p-button-primary"></button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog [(visible)]="showEditRoleModal" [header]="'Modifier le rôle'" [modal]="true" [style]="{ width: '600px' }">
+  <div class="modal-form">
+    <div class="form-group">
+      <label>Nom du rôle *</label>
+      <input type="text" pInputText [(ngModel)]="roleForm.name" placeholder="Ex: Validateur RH" class="full-width">
+    </div>
+    
+    <div class="form-group">
+      <label>Description</label>
+      <textarea pInputTextarea [(ngModel)]="roleForm.description" rows="3" placeholder="Description détaillée du rôle" class="full-width"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Rôle parent</label>
+      <select [(ngModel)]="roleForm.parentRoleId" class="full-width parent-role-select" title="Rôle parent" aria-label="Rôle parent">
+        <option [ngValue]="null">Aucun héritage</option>
+        <option *ngFor="let role of getAvailableParentRoles()" [ngValue]="role.id">{{ role.name }}</option>
+      </select>
+    </div>
+    
+    <div class="form-row">
+      <div class="form-group">
+        <label>Couleur</label>
+        <input type="color" [(ngModel)]="roleForm.color" class="color-picker">
+      </div>
+      
+      <div class="form-group">
+        <label>Statut</label>
+        <p-inputSwitch [(ngModel)]="roleForm.isActive"></p-inputSwitch>
+      </div>
+    </div>
+  </div>
+  
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Annuler" (click)="closeModals()" class="p-button-text"></button>
+    <button pButton type="button" label="Enregistrer" (click)="saveRole()" class="p-button-primary"></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Modale Test permissions -->
+<p-dialog [(visible)]="showTestPermissionsModal" [header]="'Testeur de permissions'" [modal]="true" [style]="{ width: '800px' }">
+  <div class="test-permissions-content">
+    <h3>Test du rôle : {{ selectedRole?.name }}</h3>
+    <p>Cette fonctionnalité permet de simuler les permissions d'un utilisateur avec ce rôle</p>
+    <div class="test-results">
+      <p>Fonctionnalité en développement...</p>
+    </div>
+  </div>
+  
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Fermer" (click)="closeModals()" class="p-button-text"></button>
+  </ng-template>
+</p-dialog>
+
+<!-- Modale Ajouter utilisateurs -->
+<p-dialog [(visible)]="showAddUsersModal" [header]="'Ajouter des utilisateurs au rôle'" [modal]="true" [style]="{ width: '700px' }">
+  <div class="add-users-content">
+    <p>Sélectionnez les utilisateurs à ajouter à ce rôle</p>
+    <div class="users-search">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input type="text" pInputText placeholder="Rechercher des utilisateurs..." class="full-width">
+      </span>
+    </div>
+    <p>Fonctionnalité en développement...</p>
+  </div>
+  
+  <ng-template pTemplate="footer">
+    <button pButton type="button" label="Annuler" (click)="closeModals()" class="p-button-text"></button>
+    <button pButton type="button" label="Ajouter" (click)="closeModals()" class="p-button-primary"></button>
+  </ng-template>
+</p-dialog>

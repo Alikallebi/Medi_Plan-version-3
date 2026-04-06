@@ -1,0 +1,58 @@
+<!-- register.component.html -->
+<div class="surface-0 flex align-items-center justify-content-center min-h-screen min-w-screen overflow-hidden">
+  <div class="grid justify-content-center p-2 lg:p-0" style="min-width: 80%">
+    <div class="col-12 mt-5 xl:mt-0 text-center">
+      <img src="assets/layout/images/ASM1.jpg" alt="ASM logo" class="mb-5" style="width: 81px; height: 60px;">
+    </div>
+    <div class="col-12 xl:col-6" style="border-radius: 56px; padding: 0.3rem; background: linear-gradient(180deg, var(--primary-color) 10%, rgba(33, 150, 243, 0) 30%);">
+      <div class="h-full w-full m-0 py-7 px-4" style="border-radius: 53px; background: linear-gradient(180deg, var(--surface-50) 38.9%, var(--surface-0));">
+        <div class="text-center mb-5">
+          <img src="assets/layout/images/add1.gif" alt="Image" height="200" width="200" class="mb-3">
+          <div class="text-900 text-3xl font-medium mb-3">Register</div>
+          <span class="text-600 font-medium">Sign up to continue</span>
+        </div>
+        <div *ngIf="errorMsg" class="text-red-600 mb-3">{{ errorMsg }}</div>
+
+        <form (ngSubmit)="onSubmit()" class="w-full md:w-10 mx-auto">
+          <div class="form-group">
+            <label for="name" class="block text-900 text-xl font-medium mb-2">Nom</label>
+            <input id="name" name="name" type="text" class="w-full mb-3 p-3" placeholder="Name" [(ngModel)]="formData.nom" required>
+            <div class="text-red-600" *ngIf="!formData.nom && formSubmitted">Le champ Nom est obligatoire.</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="email" class="block text-900 text-xl font-medium mb-2">Email</label>
+            <input id="email" name="email" type="email" class="w-full mb-3 p-3" placeholder="Email address" [(ngModel)]="formData.email" required>
+            <div class="text-red-600" *ngIf="(!formData.email || !isValidEmail(formData.email)) && formSubmitted">
+              Veuillez entrer une adresse email valide se terminant par '.com' (par exemple, example@gmail.com).</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="password" class="block text-900 font-medium text-xl mb-2">Mot de passe</label>
+            <div class="input-with-icon">
+              <input id="password" name="password" type="{{ hidePassword ? 'password' : 'text' }}" class="w-full mb-3 p-3" placeholder="Password" [(ngModel)]="formData.password" required>
+              <span class="password-toggle-icon" (click)="togglePasswordVisibility()">
+                <i class="pi" [ngClass]="{'pi-eye': hidePassword, 'pi-eye-slash': !hidePassword}"></i>
+              </span>
+            </div>
+            <div class="text-red-600" *ngIf="(!formData.password || !isValidPassword(formData.password)) && formSubmitted">
+              Le mot de passe doit contenir au moins 5 caractères, dont une majuscule, une minuscule et un chiffre.
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="password_confirmation" class="block text-900 font-medium text-xl mb-2">Confirm Mot de passe</label>
+            <div class="input-with-icon">
+              <input id="password_confirmation" name="password_confirmation" type="{{ hidePasswordConfirm ? 'password' : 'text' }}" class="w-full mb-3 p-3" placeholder="Confirm Password" [(ngModel)]="formData.confirmPassword" required>
+              <span class="password-toggle-icon" (click)="togglePasswordConfirmVisibility()">
+                <i class="pi" [ngClass]="{'pi-eye': hidePasswordConfirm, 'pi-eye-slash': !hidePasswordConfirm}"></i>
+              </span>
+            </div>
+            <div class="text-red-600" *ngIf="(!formData.confirmPassword || formData.password !== formData.confirmPassword) && formSubmitted">
+              Les mots de passe doivent correspondre.
+            </div>
+          </div>
+      <button type="submit" class="w-full p-3 text-xl register-button" style="background-color: var(--primary-color); color: #fff;" (click)="showSuccessViaMessages()"pButton (click)="showSuccessViaMessages()" label="Success">Register</button>
+    </form>
+  </div>
+</div>

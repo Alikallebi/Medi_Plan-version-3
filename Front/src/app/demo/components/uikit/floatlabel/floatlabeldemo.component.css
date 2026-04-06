@@ -1,0 +1,30 @@
+.message-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+    background-color: #f9f9f9;
+    padding: 20px;
+}
+
+.message-container h2 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.message-container .message {
+    font-size: 1.2rem;
+    color: #666;
+}
+
+.message-container {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 40px;
+    max-width: 400px;
+    margin: auto;
+}

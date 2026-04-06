@@ -1,0 +1,64 @@
+<aside class="med-sidebar" [class.collapsed]="isCollapsed">
+    <div class="sidebar-header">
+        <button type="button" class="collapse-btn" (click)="toggleSidebar()" [attr.aria-label]="isCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'" [attr.title]="isCollapsed ? 'Déplier la sidebar' : 'Replier la sidebar'">
+            <i class="pi" [ngClass]="isCollapsed ? 'pi-angle-right' : 'pi-angle-left'"></i>
+        </button>
+    </div>
+
+    <!-- Section Navigation principale -->
+    <div class="sidebar-section">
+        <span class="section-title" *ngIf="!isCollapsed">Navigation principale</span>
+        <button type="button" class="nav-item" *ngFor="let item of mainNavigation" (click)="navigate(item)" [pTooltip]="isCollapsed ? item.label : ''" tooltipPosition="right" [attr.title]="item.label">
+            <i [class]="item.icon"></i>
+            <span *ngIf="!isCollapsed">{{ item.label }}</span>
+        </button>
+    </div>
+
+    <!-- Section Gestion des données -->
+    <div class="sidebar-section">
+        <span class="section-title" *ngIf="!isCollapsed">Gestion des données</span>
+        <ng-container *ngFor="let item of dataManagement">
+            <!-- Titre de section -->
+            <div *ngIf="item.isTitle" class="category-title" [class.collapsed]="isCollapsed">
+                <i [class]="item.icon"></i>
+                <span *ngIf="!isCollapsed">{{ item.label }}</span>
+            </div>
+            <!-- Item cliquable -->
+            <button
+                *ngIf="!item.isTitle"
+                type="button"
+                class="sub-item"
+                (click)="navigate(item)"
+                [pTooltip]="isCollapsed ? item.label : ''"
+                tooltipPosition="right">
+                <i [class]="item.icon"></i>
+                <span *ngIf="!isCollapsed">{{ item.label }}</span>
+            </button>
+        </ng-container>
+    </div>
+
+    <!-- Section Outils -->
+    <div class="sidebar-section">
+        <span class="section-title" *ngIf="!isCollapsed">Outils</span>
+        <button type="button" class="nav-item" *ngFor="let item of toolsNavigation" (click)="navigate(item)" [pTooltip]="isCollapsed ? item.label : ''" tooltipPosition="right" [attr.title]="item.label">
+            <i [class]="item.icon"></i>
+            <span *ngIf="!isCollapsed">{{ item.label }}</span>
+        </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="sidebar-footer">
+       
+          
+        <button
+            type="button"
+            class="nav-item logout-item"
+            (click)="logout()"
+            [pTooltip]="isCollapsed ? 'Déconnexion' : ''"
+            tooltipPosition="right"
+            title="Déconnexion">
+            <i class="pi pi-sign-out"></i>
+            <span *ngIf="!isCollapsed">Déconnexion</span>
+        </button>
+    </div>
+</aside>

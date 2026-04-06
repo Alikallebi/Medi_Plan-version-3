@@ -1,0 +1,49 @@
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+}
+
+.modal-card {
+    width: min(560px, 92vw);
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    padding: 1rem;
+}
+
+header { display: flex; justify-content: space-between; align-items: center; }
+header h3 { margin: 0; color: #334155; }
+
+textarea,
+input[type='date'] {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.45rem;
+    margin-top: 0.25rem;
+}
+
+.priority-row {
+    margin-top: 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.check-row {
+    margin-top: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+footer { margin-top: 0.9rem; display: flex; justify-content: flex-end; gap: 0.5rem; }
+.btn { border: 0; border-radius: 8px; padding: 0.5rem 0.8rem; cursor: pointer; }
+.btn.cancel { background: #e2e8f0; color: #0f172a; }
+.btn.confirm { background: #2563eb; color: #fff; }

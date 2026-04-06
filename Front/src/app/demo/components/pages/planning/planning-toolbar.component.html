@@ -1,0 +1,41 @@
+<section class="planning-toolbar">
+    <div class="toolbar-left">
+        <div class="week-selector">
+            <button type="button" class="icon-btn" (click)="previousWeek.emit()" aria-label="Semaine précédente">‹</button>
+            <button type="button" class="week-btn" (click)="goToday.emit()">
+                <i class="pi pi-calendar"></i>
+                {{ weekLabel }}
+            </button>
+            <button type="button" class="icon-btn" (click)="nextWeek.emit()" aria-label="Semaine suivante">›</button>
+        </div>
+
+        <select class="select-control" title="Sélectionner la vue" aria-label="Sélectionner la vue" [ngModel]="currentView" (ngModelChange)="viewChanged.emit($event)">
+            <option value="hebdomadaire">Vue: Hebdomadaire</option>
+            <option value="journaliere">Vue: Journalière</option>
+            <option value="mensuelle">Vue: Mensuelle</option>
+        </select>
+    </div>
+
+    <div class="toolbar-right">
+        <!-- Export : tous les rôles -->
+        <select class="select-control" title="Choisir le format d'export" aria-label="Choisir le format d'export" (ngModelChange)="exportPlanning.emit($event)" [ngModel]="'pdf'">
+            <option value="pdf">Exporter PDF</option>
+            <option value="excel">Exporter Excel</option>
+            <option value="csv">Exporter CSV</option>
+        </select>
+
+        <!-- Valider : Chef de Pôle, Validateur RH, Admin -->
+        <button *ngIf="userCanValidate" type="button" class="validate-btn" [disabled]="loading" (click)="validatePlanning.emit()">
+            <i class="pi pi-check"></i>
+            Valider
+        </button>
+
+        <!-- Soumettre : Chef de Service, Admin -->
+        <button *ngIf="userCanSubmit" type="button" class="submit-btn"
+            [disabled]="!canSubmit"
+            [title]="canSubmit ? 'Soumettre ce planning pour validation' : 'Planning déjà soumis ou en cours de validation'"
+            (click)="submitForValidation.emit()">
+            {{ submitLabel }}
+        </button>
+    </div>
+</section>

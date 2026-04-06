@@ -1,0 +1,249 @@
+<section class="validation-detail-page">
+    <button type="button" class="back-link" (click)="retourInbox()">{{ backLinkLabel }}</button>
+
+    <div class="state-card loading" *ngIf="isLoading">
+        <div class="skeleton title"></div>
+        <div class="skeleton line" *ngFor="let item of [1, 2, 3, 4, 5, 6]"></div>
+    </div>
+
+    <div class="state-card error" *ngIf="!isLoading && hasError">
+        <h3>Erreur de chargement</h3>
+        <p>{{ errorMessage }}</p>
+        <button type="button" class="btn btn-retry" (click)="retryLoad()">Réessayer</button>
+    </div>
+
+    <ng-container *ngIf="!isLoading && !hasError && planning && validationStatus">
+        <header class="page-header">
+            <h2>📅 {{ planningTitle }}</h2>
+        </header>
+
+        <section class="panel">
+            <h3>INFORMATIONS GÉNÉRALES</h3>
+            <div class="panel-content info-grid">
+                <p>Créé par : <strong>{{ createdByLabel }}</strong> le {{ createdAtLabel }}</p>
+                <p>Service : <strong>{{ planning.serviceName }}</strong></p>
+                <p>Version : <strong>v{{ planning.lockVersion || 1 }}</strong></p>
+                <p>Statut : <strong>{{ statusLabel }}</strong></p>
+                <p>Dernière action : <strong>{{ derniereActionLabel }}</strong></p>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3>PROGRESSION DU WORKFLOW</h3>
+            <div class="panel-content progression-row">
+                <ng-container *ngFor="let etape of etapes">
+                    <span
+                        class="step-badge"
+                        [ngClass]="{
+                            done: etape.order < etapeActuelle,
+                            current: etape.order === etapeActuelle,
+                            future: etape.order > etapeActuelle
+                        }"
+                    >
+                        Étape {{ etape.order }} · {{ etape.label }}
+                    </span>
+                </ng-container>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3>APERÇU DU PLANNING</h3>
+            <div class="panel-content">
+                <app-planning-preview
+                    [planning]="planning"
+                    (openPlanning)="ouvrirPlanningComplet()"
+                    (exportPdf)="exporterPdf()"
+                ></app-planning-preview>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3>HISTORIQUE DES VALIDATIONS</h3>
+            <div class="panel-content">
+                <app-validation-timeline
+                    [historique]="historique"
+                    [etapes]="etapes"
+                    [etapeActuelle]="etapeActuelle"
+                ></app-validation-timeline>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3>💬 COMMENTAIRES</h3>
+            <div class="panel-content">
+                <app-comment-section
+                    [comments]="comments"
+                    [attachments]="attachments"
+                    [isLoading]="isCommentsLoading"
+                    [hasError]="commentsHasError"
+                    [errorMessage]="commentsErrorMessage"
+                    [isSubmitting]="isCommentSubmitting"
+                    (retry)="onRetryComments()"
+                    (submitComment)="onSubmitComment($event)"
+                ></app-comment-section>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h3>📎 PIÈCES JOINTES</h3>
+            <div class="panel-content">
+                <app-attachment-list
+                    [attachments]="attachments"
+                    [isLoading]="isAttachmentsLoading"
+                    [hasError]="attachmentsHasError"
+                    [errorMessage]="attachmentsErrorMessage"
+                    [isUploading]="isAttachmentUploading"
+                    (retry)="onRetryAttachments()"
+                    (uploadFiles)="onUploadFiles($event)"
+                    (removeAttachment)="onRemoveAttachment($event)"
+                ></app-attachment-list>
+            </div>
+        </section>
+
+        <section class="panel" *ngIf="!isReadOnlyMode">
+            <h3>ZONE D'ACTION</h3>
+            <div class="panel-content action-zone">
+                <label for="workflow-comment">Commentaire</label>
+                <textarea
+                    id="workflow-comment"
+                    rows="3"
+                    [(ngModel)]="actionComment"
+                    [disabled]="isActionLoading || !canAct"
+                    placeholder="Ajouter un commentaire complémentaire..."
+                ></textarea>
+
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-reject" [disabled]="!canAct || isActionLoading" (click)="ouvrirModalRejet()">✗ Rejeter</button>
+                    <button type="button" class="btn btn-modif" [disabled]="!canAct || isActionLoading" (click)="ouvrirModalDemandeModification()">✏️ Demander modif</button>
+                    <button type="button" class="btn btn-approve" [disabled]="!canAct || isActionLoading" (click)="ouvrirModalApprobation()">✓ Approuver</button>
+                </div>
+            </div>
+        </section>
+    </ng-container>
+</section>
+
+<app-approbation-modal
+    *ngIf="showApprobationModal && planning"
+    [planning]="planning"
+    [etapeActuelle]="etapeActuelle"
+    [isSubmitting]="isActionLoading"
+    (confirm)="onApprobationConfirm($event)"
+    (cancel)="closeModals()">
+</app-approbation-modal>
+
+<app-rejet-modal
+    *ngIf="showRejetModal && planning"
+    [planning]="planning"
+    [isSubmitting]="isActionLoading"
+    (confirm)="onRejetConfirm($event)"
+    (cancel)="closeModals()">
+</app-rejet-modal>
+
+<app-demande-modification-modal
+    *ngIf="showDemandeModal && planning"
+    [planning]="planning"
+    [isSubmitting]="isActionLoading"
+    (confirm)="onDemandeConfirm($event)"
+    (cancel)="closeModals()">
+</app-demande-modification-modal>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODALE — Planning en lecture seule
+     ══════════════════════════════════════════════════════════════ -->
+<div class="planning-modal-overlay" *ngIf="showPlanningModal" (click)="fermerPlanningModal()">
+    <div class="planning-modal-panel" (click)="$event.stopPropagation()">
+
+        <!-- ── En-tête ──────────────────────────────────────────────────── -->
+        <div class="modal-header">
+            <div class="modal-title">
+                <div class="modal-icon">📅</div>
+                <div class="modal-title-text">
+                    <h2>Planning — {{ planning?.serviceName }}</h2>
+                    <div class="modal-subtitle">
+                        <span>Semaine du {{ planningModalWeekLabel }}</span>
+                        <span class="modal-sep">·</span>
+                        <span class="modal-status-badge" [ngClass]="planningModalStatusClass">
+                            {{ planning?.workflowStatus }}
+                        </span>
+                        <span class="modal-sep">·</span>
+                        <span class="modal-count-chip">
+                            {{ planning?.assignments?.length || 0 }} affectation(s)
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" (click)="fermerPlanningModal()" title="Fermer">×</button>
+        </div>
+
+        <!-- ── Corps ────────────────────────────────────────────────────── -->
+        <div class="modal-body">
+
+            <!-- État vide -->
+            <div class="empty-state" *ngIf="!planning?.assignments?.length">
+                <span class="empty-icon">📋</span>
+                <p>Aucune affectation enregistrée pour ce planning.</p>
+            </div>
+
+            <!-- Grille planning : lignes = personnel, colonnes = jours -->
+            <ng-container *ngIf="planning?.assignments?.length">
+                <div class="pg-grid-wrapper">
+                    <div class="pg-grid">
+
+                        <!-- En-têtes colonnes -->
+                        <div class="pg-header-name">
+                            <i class="pi pi-users"></i> Personnel
+                        </div>
+                        <div class="pg-header-day"
+                             *ngFor="let day of planningModalDays; let d = index"
+                             [class.pg-weekend]="d >= 5">
+                            <span class="pg-header-day-name">{{ day }}</span>
+                            <span class="pg-header-day-date">{{ planningModalDayDateLabel(d) }}</span>
+                        </div>
+
+                        <!-- Ligne par personnel -->
+                        <ng-container *ngFor="let row of planningModalRows; let i = index">
+
+                            <!-- Colonne nom + avatar -->
+                            <div class="pg-name-cell" [class.alt-row]="i % 2 === 1">
+                                <div class="pg-avatar" [style.background]="row.avatarColor">
+                                    {{ row.initials }}
+                                </div>
+                                <div class="pg-name-info">
+                                    <span class="pg-fullname">{{ row.prenom }} {{ row.nom }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Cellules par jour -->
+                            <div class="pg-day-cell"
+                                 [class.alt-row]="i % 2 === 1"
+                                 [class.pg-weekend]="d >= 5"
+                                 *ngFor="let a of row.assignments; let d = index">
+                                <ng-container *ngIf="a; else emptyCell">
+                                    <div class="pg-shift-card" [ngClass]="'shift-' + a.shiftType">
+                                        <span class="pg-shift-badge">
+                                            {{ shiftIcon(a.shiftType) }} {{ shiftLabel(a.shiftType) }}
+                                        </span>
+                                        <span class="pg-shift-poste" *ngIf="a.posteLabel">
+                                            {{ a.posteLabel }}
+                                        </span>
+                                    </div>
+                                </ng-container>
+                                <ng-template #emptyCell>
+                                    <span class="pg-empty">—</span>
+                                </ng-template>
+                            </div>
+
+                        </ng-container>
+                    </div>
+                </div>
+            </ng-container>
+
+        </div>
+
+        <!-- ── Pied de modale ────────────────────────────────────────────── -->
+        <div class="modal-footer">
+            <span class="readonly-badge">🔒 Lecture seule</span>
+            <button type="button" class="btn btn-close-modal" (click)="fermerPlanningModal()">Fermer</button>
+        </div>
+    </div>
+</div>

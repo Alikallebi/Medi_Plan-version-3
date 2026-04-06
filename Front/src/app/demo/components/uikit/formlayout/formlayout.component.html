@@ -1,0 +1,74 @@
+<div class="calendar-container">
+  <p-speedDial [model]="items" [showIcon]="'pi pi-plus'" [hideIcon]="'pi pi-times'" class="calendar-speedDial"></p-speedDial>
+  <full-calendar [options]="calendarOptions"></full-calendar>
+  
+  <!-- Dialog for adding new events -->
+  <p-dialog header="Ajouter un nouvel événement" [(visible)]="displayAddDialog" [modal]="true" [closable]="false" [style]="{width: '400px'}">
+    <div class="p-fluid">
+      <div class="p-field">
+        <label for="title">Titre</label>
+        <input id="title" type="text" pInputText [(ngModel)]="newEvent.title" />
+      </div>
+      <div class="p-field">
+        <label for="date">Date</label>
+        <p-calendar id="date" [(ngModel)]="newEvent.start" [showTime]="true" [showSeconds]="true" appendTo="body"></p-calendar>
+      </div>
+    </div>
+    <p-footer>
+      <button type="button" pButton label="Ajouter" icon="pi pi-check" (click)="confirmAddEvent()"></button>
+      <button type="button" pButton label="Annuler" icon="pi pi-times" class="p-button-secondary" (click)="displayAddDialog=false"></button>
+    </p-footer>
+  </p-dialog>
+
+  <!-- Dialog for selecting and editing events -->
+  <p-dialog header="Modifier un événement" [(visible)]="displaySelectDialog" [modal]="true" [closable]="true" [style]="{width: '400px'}">
+    <div class="p-fluid">
+      <div class="p-field">
+        <label for="selectedEvent">Sélectionner un événement</label>
+        <p-dropdown [options]="eventOptions" [(ngModel)]="selectedEvent" optionLabel="title" placeholder="Sélectionner un événement" appendTo="body"></p-dropdown>
+      </div>
+      <div *ngIf="selectedEvent">
+        <div class="p-field">
+          <label for="editTitle">Titre</label>
+          <input id="editTitle" type="text" pInputText [(ngModel)]="selectedEvent.title" />
+        </div>
+        <div class="p-field">
+          <label for="editDate">Date</label>
+          <p-calendar id="editDate" [(ngModel)]="selectedEvent.start" [showTime]="true" [showSeconds]="true" appendTo="body"></p-calendar>
+        </div>
+      </div>
+    </div>
+    <p-footer *ngIf="selectedEvent">
+      <button type="button" pButton label="Mettre à jour" icon="pi pi-check" (click)="confirmUpdateEvent()"></button>
+      <button type="button" pButton label="Annuler" icon="pi pi-times" class="p-button-secondary" (click)="displaySelectDialog=false"></button>
+    </p-footer>
+  </p-dialog>
+
+  <!-- Dialog for deleting events -->
+  <p-dialog header="Supprimer un événement" [(visible)]="displayDeleteDialog" [modal]="true" [closable]="true" [style]="{width: '400px'}">
+    <div class="p-fluid">
+      <div class="p-field">
+        <label for="deleteEvent">Sélectionner un événement à supprimer</label>
+        <p-dropdown [options]="eventOptions" [(ngModel)]="selectedDeleteEvent" optionLabel="title" placeholder="Sélectionner un événement" appendTo="body"></p-dropdown>
+      </div>
+    </div>
+    <p-footer *ngIf="selectedDeleteEvent">
+      <button type="button" pButton label="Supprimer" icon="pi pi-trash" (click)="confirmDeleteEvent()"></button>
+      <button type="button" pButton label="Annuler" icon="pi pi-times" class="p-button-secondary" (click)="displayDeleteDialog=false"></button>
+    </p-footer>
+  </p-dialog>
+
+  <!-- Dialog for displaying events of the selected day -->
+  <p-dialog header="Événements du jour" [(visible)]="displayEventsDialog" [modal]="true" [style]="{width: '400px'}">
+    <div class="p-fluid">
+      <ul>
+        <li *ngFor="let event of eventsOfDay">
+          {{ event.title }} - {{ event.start | date: 'shortTime' }}
+        </li>
+      </ul>
+    </div>
+    <p-footer>
+      <button type="button" pButton label="Fermer" icon="pi pi-times" class="p-button-secondary" (click)="displayEventsDialog=false"></button>
+    </p-footer>
+  </p-dialog>
+</div>

@@ -1,0 +1,31 @@
+.planning-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.planning-preview h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.planning-preview p {
+    margin: 0;
+    color: #334155;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+}
+
+.btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.5rem 0.8rem;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+}

@@ -1,0 +1,75 @@
+.attachment-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.upload-btn {
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    width: fit-content;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.upload-btn input {
+    display: none;
+}
+
+.attachment-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.attachment-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.7rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.attachment-item small {
+    display: block;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+.actions {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+}
+
+.btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.35rem 0.65rem;
+    background: #fff;
+    cursor: pointer;
+}
+
+.btn.danger {
+    border-color: #fecaca;
+    color: #b91c1c;
+    background: #fef2f2;
+}
+
+.state {
+    color: #334155;
+}
+
+.state.error {
+    color: #b91c1c;
+}
+
+.empty {
+    margin: 0;
+    color: #64748b;
+}

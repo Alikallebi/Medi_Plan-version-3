@@ -1,0 +1,14 @@
+<div class="charts-wrapper" *ngIf="stats">
+    <div class="chart-header">
+        <p>30 derniers jours</p>
+        <div class="filters">
+            <button type="button" class="btn" [class.active]="selectedView === 'service'" (click)="setView('service')">📊 Par service</button>
+            <button type="button" class="btn" [class.active]="selectedView === 'validateur'" (click)="setView('validateur')">📊 Par validateur</button>
+            <button type="button" class="btn" [class.active]="selectedView === 'statut'" (click)="setView('statut')">📊 Par statut</button>
+        </div>
+    </div>
+
+    <div class="chart-area">
+        <canvas #chartCanvas></canvas>
+    </div>
+</div>

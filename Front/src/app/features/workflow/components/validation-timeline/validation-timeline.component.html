@@ -1,0 +1,44 @@
+<div class="timeline">
+    <div *ngFor="let event of historiqueTries" class="timeline-item past">
+        <div class="timeline-icon" [ngClass]="getIconClass(event)">
+            {{ getIcon(event) }}
+        </div>
+        <div class="timeline-content">
+            <div class="timeline-header">
+                <span class="timeline-date">{{ event.createdAt | date:'short' }}</span>
+                <span class="timeline-action">{{ getActionLabel(event.action) }}</span>
+            </div>
+            <div class="timeline-detail">
+                {{ event.actorUserId }} ({{ getRoleName(event.actorRole) }})
+            </div>
+            <div *ngIf="event.comment" class="timeline-comment">
+                💬 {{ event.comment }}
+            </div>
+        </div>
+    </div>
+
+    <div class="timeline-item current" *ngIf="etapeActuelle <= etapes.length && etapes.length > 0">
+        <div class="timeline-icon pending">⏳</div>
+        <div class="timeline-content">
+            <div class="timeline-header">
+                <span class="timeline-date">En cours</span>
+                <span class="timeline-action">Étape {{ etapeActuelle }}/{{ etapes.length }}</span>
+            </div>
+            <div class="timeline-detail">
+                En attente de : {{ getValidateurActuel() }}
+            </div>
+            <div *ngIf="delaiRestant" class="timeline-delai">
+                ⏰ Délai restant : {{ delaiRestant }}
+            </div>
+        </div>
+    </div>
+
+    <div *ngFor="let etape of etapesAvenir" class="timeline-item future">
+        <div class="timeline-icon muted">⚪</div>
+        <div class="timeline-content">
+            <div class="timeline-detail">
+                Étape {{ etape.order }} : {{ getRoleName(etape.validatorRole) }}
+            </div>
+        </div>
+    </div>
+</div>

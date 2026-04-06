@@ -1,0 +1,17 @@
+<ul class="layout-menu">
+  <li class="menu-item" *ngFor="let section of model">
+    <span class="menu-label" *ngIf="section.label">{{ section.label }}</span>
+    <ul *ngIf="section.items?.length" class="layout-submenu">
+      <li class="submenu-item" *ngFor="let item of section.items">
+        <a *ngIf="item.routerLink && item.visible !== false" [routerLink]="item.routerLink">
+          <i [class]="item.icon"></i>
+          <span>{{ item.label }}</span>
+        </a>
+        <button *ngIf="!item.routerLink && item.command && item.visible !== false" type="button" (click)="item.command()">
+          <i [class]="item.icon"></i>
+          <span>{{ item.label }}</span>
+        </button>
+      </li>
+    </ul>
+  </li>
+</ul>

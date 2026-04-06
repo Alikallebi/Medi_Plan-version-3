@@ -1,0 +1,76 @@
+.workflow-diagram {
+  display: flex;
+  align-items: center;
+  background: #f7f7f7;
+  padding: 32px 16px;
+  border-radius: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 20px;
+  min-width: 120px;
+  box-shadow: 0 2px 8px #0001;
+  font-weight: 500;
+  font-size: 15px;
+}
+.validation-step {
+  border: 2px solid #009688;
+  background: #e0f7fa;
+  min-width: 160px;
+}
+.step-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #009688;
+  margin-bottom: 8px;
+}
+.validator-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.validator-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #009688;
+  margin-bottom: 6px;
+}
+.validator-name {
+  font-size: 14px;
+  color: #333;
+}
+.workflow-branch {
+  display: flex;
+  gap: 32px;
+}
+.action-step .step-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.action-step .step-icon.success {
+  background: #e8f5e9;
+  border-radius: 50%;
+}
+.action-step .step-icon.reject {
+  background: #ffebee;
+  border-radius: 50%;
+}
+.arrow {
+  margin: 0 8px;
+}
+.step-label {
+  margin-top: 4px;
+  text-align: center;
+}

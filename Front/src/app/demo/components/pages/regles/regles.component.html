@@ -1,0 +1,597 @@
+<p-toast></p-toast>
+<p-confirmDialog></p-confirmDialog>
+
+<!-- EN-TÊTE DE PAGE -->
+<div class="regles-page">
+    <div class="page-header">
+        <div class="header-left">
+            <h1><i class="pi pi-balance-scale"></i> Gestion des règles de planification</h1>
+            <p class="subtitle">Définissez les contraintes légales et internes pour les plannings</p>
+        </div>
+        
+        <div class="header-actions">
+            <button pButton label="Nouvelle règle" icon="pi pi-plus" 
+                    class="p-button-primary" 
+                    *ngIf="rbac.canEdit('planification.regles')"
+                    (click)="nouvelleRegleAction()"></button>
+            <button pButton label="Importer" icon="pi pi-upload" 
+                    class="p-button-outlined" 
+                    *ngIf="rbac.canEdit('planification.regles')"
+                    (click)="importerRegles()"></button>
+            <button pButton label="Exporter" icon="pi pi-download" 
+                    class="p-button-outlined" 
+                    (click)="exporterRegles()"></button>
+            <button pButton label="Tester global" icon="pi pi-flask" 
+                    class="p-button-outlined" 
+                    (click)="testerGlobal()"></button>
+            <button pButton icon="pi pi-question-circle" 
+                    class="p-button-rounded p-button-text" 
+                    (click)="afficherAide()" 
+                    pTooltip="Aide"></button>
+        </div>
+    </div>
+
+    <!-- STATISTIQUES RAPIDES -->
+    <div class="stats-bar" *ngIf="statistiques">
+        <div class="stat-item">
+            <span class="stat-label">Total règles :</span>
+            <span class="stat-value">{{statistiques.totalActives}} actives</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Par type :</span>
+            <span class="stat-value">
+                {{statistiques.parType[TypeRegle.LEGALE] || 0}} légales • 
+                {{statistiques.parType[TypeRegle.INTERNE] || 0}} internes • 
+                {{statistiques.parType[TypeRegle.EQUITE] || 0}} équité
+            </span>
+        </div>
+        <div class="stat-item" *ngIf="statistiques.enConflit > 0">
+            <span class="stat-label text-warning">Règles en conflit :</span>
+            <span class="stat-value text-warning">{{statistiques.enConflit}}</span>
+        </div>
+        <div class="stat-item" *ngIf="statistiques.exceptionsActives > 0">
+            <span class="stat-label">Exceptions actives :</span>
+            <span class="stat-value">{{statistiques.exceptionsActives}}</span>
+        </div>
+    </div>
+
+    <!-- CONTENEUR 2 COLONNES -->
+    <div class="regles-content">
+        <!-- COLONNE GAUCHE : LISTE DES RÈGLES -->
+        <div class="colonne-liste">
+            <div class="liste-header">
+                <!-- Recherche -->
+                <span class="p-input-icon-left search-box">
+                    <i class="pi pi-search"></i>
+                    <input type="text" pInputText placeholder="Rechercher une règle..." 
+                           [(ngModel)]="searchTerm" 
+                           (ngModelChange)="onSearchChange()" />
+                </span>
+
+                <!-- Filtres -->
+                <div class="filtres">
+                    <button *ngFor="let filtre of filtres" 
+                            pButton 
+                            [label]="filtre.label" 
+                            class="p-button-sm p-button-outlined filtre-pill"
+                            [ngClass]="{'active': filtreActif === filtre.value}"
+                            (click)="changerFiltre(filtre.value)"></button>
+                </div>
+            </div>
+
+            <!-- Liste par catégories -->
+            <div class="liste-regles" *ngIf="!loading">
+                <div *ngFor="let categorie of categories" class="categorie-section">
+                    <div class="categorie-header" (click)="toggleCategorie(categorie)">
+                        <i class="pi" [ngClass]="categorie.collapsed ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
+                        <span class="categorie-nom">{{categorie.nom}} ({{getReglesParCategorie(categorie.type).length}})</span>
+                    </div>
+
+                    <div class="categorie-content" *ngIf="!categorie.collapsed">
+                        <div *ngFor="let regle of getReglesParCategorie(categorie.type)" 
+                             [ngClass]="getClasseRegle(regle)"
+                             (click)="selectionnerRegle(regle)">
+                            <div class="regle-header-row">
+                                <span class="regle-nom">{{regle.nom}}</span>
+                                <p-tag [value]="regle.statut === StatutRegle.ACTIVE ? 'A' : 'I'" 
+                                       [severity]="getBadgeStatut(regle.statut)"
+                                       [pTooltip]="regle.statut === StatutRegle.ACTIVE ? 'Active' : 'Inactive'"></p-tag>
+                            </div>
+                            <div class="regle-code">Code: {{regle.code}}</div>
+                            <div class="regle-application">
+                                Appliquée à: {{regle.posteConcernes.length > 0 ? regle.posteConcernes.length + ' postes' : 'Tous postes'}}
+                            </div>
+                            <div class="regle-priorite">
+                                Priorité: {{getLibellePriorite(regle.priorite)}}
+                            </div>
+                        </div>
+
+                        <div *ngIf="getReglesParCategorie(categorie.type).length === 0" class="aucune-regle">
+                            Aucune règle dans cette catégorie
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div class="liste-loading" *ngIf="loading">
+                <p-progressSpinner></p-progressSpinner>
+            </div>
+        </div>
+
+        <!-- COLONNE DROITE : DÉTAIL DE LA RÈGLE -->
+        <div class="colonne-detail">
+            <!-- Aucune règle sélectionnée -->
+            <div class="no-selection" *ngIf="!regleSelectionnee">
+                <i class="pi pi-arrow-left"></i>
+                <p>Sélectionnez une règle dans la liste pour voir ses détails</p>
+            </div>
+
+            <!-- Détail de la règle sélectionnée -->
+            <div class="detail-content" *ngIf="regleSelectionnee">
+                <!-- En-tête du détail -->
+                <div class="detail-header">
+                    <button pButton icon="pi pi-arrow-left" 
+                            class="p-button-text p-button-sm retour-btn" 
+                            label="Retour à la liste"
+                            (click)="retourListe()"></button>
+
+                    <div class="detail-title-section">
+                        <h2 class="detail-title" [ngClass]="'type-' + regleSelectionnee.type">
+                            {{regleSelectionnee.nom}}
+                        </h2>
+                        
+                        <div class="detail-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Type:</span>
+                                <span class="meta-value">{{regleSelectionnee.type === TypeRegle.LEGALE ? 'Règle légale' : regleSelectionnee.type === TypeRegle.INTERNE ? 'Règle interne' : 'Règle d\'équité'}}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Code:</span>
+                                <span class="meta-value">{{regleSelectionnee.code}}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Statut:</span>
+                                <p-tag [value]="regleSelectionnee.statut === StatutRegle.ACTIVE ? 'Active' : 'Inactive'" 
+                                       [icon]="getIconeStatut(regleSelectionnee.statut)"
+                                       [severity]="getBadgeStatut(regleSelectionnee.statut)"></p-tag>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Priorité:</span>
+                                <span class="meta-value">{{getLibellePriorite(regleSelectionnee.priorite)}}</span>
+                            </div>
+                            <div class="meta-item" *ngIf="regleSelectionnee.creeLe">
+                                <span class="meta-label">Créée le:</span>
+                                <span class="meta-value">{{regleSelectionnee.creeLe | date:'dd/MM/yyyy'}}</span>
+                            </div>
+                            <div class="meta-item" *ngIf="regleSelectionnee.modifieLe">
+                                <span class="meta-label">Dernière modif:</span>
+                                <span class="meta-value">{{regleSelectionnee.modifieLe | date:'dd/MM/yyyy'}} par {{regleSelectionnee.modifiePar}}</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-actions">
+                            <button pButton label="Modifier" icon="pi pi-pencil" 
+                                    class="p-button-sm" 
+                                    *ngIf="rbac.canEdit('planification.regles')"
+                                    (click)="modifierRegle()"></button>
+                            <button pButton 
+                                    [label]="regleSelectionnee.statut === StatutRegle.ACTIVE ? 'Désactiver' : 'Activer'" 
+                                    [icon]="regleSelectionnee.statut === StatutRegle.ACTIVE ? 'pi pi-pause' : 'pi pi-play'" 
+                                    class="p-button-sm p-button-secondary" 
+                                    *ngIf="rbac.canEdit('planification.regles')"
+                                    (click)="toggleStatutRegle()"></button>
+                            <button pButton label="Tester" icon="pi pi-flask" 
+                                    class="p-button-sm p-button-secondary" 
+                                    (click)="testerRegle()"></button>
+                            <button pButton label="Dupliquer" icon="pi pi-copy" 
+                                    class="p-button-sm p-button-secondary" 
+                                    *ngIf="rbac.canEdit('planification.regles')"
+                                    (click)="dupliquerRegle()"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Onglets -->
+                <p-tabView [activeIndex]="ongletActif === 'configuration' ? 0 : ongletActif === 'application' ? 1 : ongletActif === 'exceptions' ? 2 : ongletActif === 'impact' ? 3 : 4"
+                           (activeIndexChange)="handleTabChange($event)">
+                    
+                    <!-- ONGLET CONFIGURATION -->
+                    <p-tabPanel header="Configuration">
+                        <div class="onglet-content">
+                            <div class="section">
+                                <h3>Description générale</h3>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <span class="info-label">Nom</span>
+                                        <span class="info-value">{{regleSelectionnee.nom}}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Description</span>
+                                        <span class="info-value">{{regleSelectionnee.description}}</span>
+                                    </div>
+                                    <div class="info-item" *ngIf="regleSelectionnee.source">
+                                        <span class="info-label">Source</span>
+                                        <span class="info-value">{{regleSelectionnee.source}}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section">
+                                <h3>Conditions d'application</h3>
+                                <div class="conditions-list" *ngIf="regleSelectionnee.conditions && regleSelectionnee.conditions.length > 0">
+                                    <div *ngFor="let condition of regleSelectionnee.conditions; let i = index" class="condition-item">
+                                        <span class="condition-operateur" *ngIf="i > 0">{{condition.operateur}}</span>
+                                        <span class="condition-text">
+                                            [{{condition.champ}}] {{condition.comparateur === 'est' ? '=' : condition.comparateur}} [{{condition.valeur}}]
+                                        </span>
+                                    </div>
+                                </div>
+                                <p *ngIf="!regleSelectionnee.conditions || regleSelectionnee.conditions.length === 0">
+                                    Aucune condition spécifique
+                                </p>
+                            </div>
+
+                            <div class="section">
+                                <h3>Conséquence</h3>
+                                <div class="info-grid" *ngIf="regleSelectionnee.action">
+                                    <div class="info-item">
+                                        <span class="info-label">Type d'action</span>
+                                        <span class="info-value">{{regleSelectionnee.action.type}}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Message</span>
+                                        <span class="info-value">{{regleSelectionnee.action.messageAction}}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section">
+                                <h3>En cas de non-respect</h3>
+                                <div class="alerte-config">
+                                    <p-tag [value]="regleSelectionnee.niveauAlerte" 
+                                           [severity]="regleSelectionnee.niveauAlerte === NiveauAlerte.BLOQUANT ? 'danger' : regleSelectionnee.niveauAlerte === NiveauAlerte.AVERTISSEMENT ? 'warning' : 'info'"></p-tag>
+                                    <p>{{regleSelectionnee.messageAlerte}}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </p-tabPanel>
+
+                    <!-- ONGLET APPLICATION -->
+                    <p-tabPanel header="Application">
+                        <div class="onglet-content">
+                            <div class="section">
+                                <h3>Périmètre de la règle</h3>
+                                <p><strong>Niveau:</strong> {{regleSelectionnee.perimetre.niveau}}</p>
+                            </div>
+
+                            <div class="section">
+                                <h3>Postes concernés ({{regleSelectionnee.posteConcernes.length}})</h3>
+                                <div *ngIf="regleSelectionnee.posteConcernes.length > 0">
+                                    <p-tag *ngFor="let poste of regleSelectionnee.posteConcernes" 
+                                            [value]="poste" 
+                                            styleClass="mr-2 mb-2"></p-tag>
+                                </div>
+                                <p *ngIf="regleSelectionnee.posteConcernes.length === 0">
+                                    Tous les postes
+                                </p>
+                            </div>
+
+                            <div class="section" *ngIf="regleSelectionnee.periodes && regleSelectionnee.periodes.length > 0">
+                                <h3>Périodes spécifiques</h3>
+                                <div *ngFor="let periode of regleSelectionnee.periodes" class="periode-item">
+                                    <p-tag [value]="periode.nom"></p-tag>
+                                </div>
+                            </div>
+                        </div>
+                    </p-tabPanel>
+
+                    <!-- ONGLET EXCEPTIONS -->
+                    <p-tabPanel header="Exceptions">
+                        <div class="onglet-content">
+                            <div class="section">
+                                <div class="section-header-with-action">
+                                    <h3>Exceptions à cette règle ({{exceptions.length}})</h3>
+                                    <button pButton label="Ajouter une exception" 
+                                            icon="pi pi-plus" 
+                                            class="p-button-sm" 
+                                            *ngIf="rbac.canEdit('planification.regles')"
+                                            (click)="ajouterException()"></button>
+                                </div>
+
+                                <div class="exceptions-list" *ngIf="exceptions.length > 0">
+                                    <div *ngFor="let exception of exceptions" class="exception-card">
+                                        <div class="exception-header">
+                                            <strong>{{exception.cibleNom}}</strong>
+                                            <div>
+                                                <button pButton icon="pi pi-trash" 
+                                                        class="p-button-sm p-button-text p-button-danger" 
+                                                        *ngIf="rbac.canEdit('planification.regles')"
+                                                        (click)="supprimerException(exception)" 
+                                                        pTooltip="Révoquer"></button>
+                                            </div>
+                                        </div>
+                                        <div class="exception-body">
+                                            <p><strong>Motif:</strong> {{exception.motif}}</p>
+                                            <p><strong>Valable:</strong> 
+                                                {{exception.permanent ? 'Permanent' : (exception.dateDebut | date:'dd/MM/yyyy') + (exception.dateFin ? ' - ' + (exception.dateFin | date:'dd/MM/yyyy') : '')}}
+                                            </p>
+                                            <p><strong>Autorisation:</strong> {{exception.validerParNom}}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p *ngIf="exceptions.length === 0">
+                                    Aucune exception pour cette règle
+                                </p>
+                            </div>
+                        </div>
+                    </p-tabPanel>
+
+                    <!-- ONGLET IMPACT -->
+                    <p-tabPanel header="Impact">
+                        <div class="onglet-content">
+                            <div class="section" *ngIf="impact">
+                                <h3>Impact de la règle</h3>
+                                <div class="impact-stats">
+                                    <div class="impact-card">
+                                        <div class="impact-value">{{impact.planningsConcernes}}</div>
+                                        <div class="impact-label">Plannings concernés ce mois</div>
+                                    </div>
+                                    <div class="impact-card warning">
+                                        <div class="impact-value">{{impact.violationsDetectees}}</div>
+                                        <div class="impact-label">Violations détectées ({{impact.tauxViolation}}%)</div>
+                                    </div>
+                                </div>
+
+                                <h4>Violations récentes</h4>
+                                <p-table [value]="impact.violationsRecentes" [paginator]="false">
+                                    <ng-template pTemplate="header">
+                                        <tr>
+                                            <th>Planning</th>
+                                            <th>Service</th>
+                                            <th>Date</th>
+                                            <th>Responsable</th>
+                                        </tr>
+                                    </ng-template>
+                                    <ng-template pTemplate="body" let-violation>
+                                        <tr>
+                                            <td>{{violation.planning}}</td>
+                                            <td>{{violation.service}}</td>
+                                            <td>{{violation.date | date:'dd/MM/yyyy'}}</td>
+                                            <td>{{violation.responsable}}</td>
+                                        </tr>
+                                    </ng-template>
+                                </p-table>
+                            </div>
+                        </div>
+                    </p-tabPanel>
+
+                    <!-- ONGLET HISTORIQUE -->
+                    <p-tabPanel header="Historique">
+                        <div class="onglet-content">
+                            <div class="section">
+                                <h3>Journal des modifications</h3>
+                                <p-timeline [value]="historique" align="left">
+                                    <ng-template pTemplate="content" let-event>
+                                        <div class="timeline-item">
+                                            <div class="timeline-date">{{event.date | date:'dd/MM/yyyy HH:mm'}}</div>
+                                            <div class="timeline-content">
+                                                <i [class]="getIconeTypeHistorique(event.type)"></i>
+                                                {{event.detail}}
+                                            </div>
+                                            <div class="timeline-user">Par {{event.utilisateur}}</div>
+                                        </div>
+                                    </ng-template>
+                                </p-timeline>
+                            </div>
+                        </div>
+                    </p-tabPanel>
+                </p-tabView>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE DE CRÉATION/MODIFICATION -->
+<p-dialog [(visible)]="afficherModaleCreation" 
+          [header]="nouvelleRegle.id ? 'Modifier la règle' : 'Créer une nouvelle règle'"
+          [modal]="true" 
+          [style]="{width: '600px'}"
+          [closable]="true">
+    <div class="wizard-content" *ngIf="!nouvelleRegle.id">
+        <!-- Assistant de création en 4 étapes -->
+        <p-steps [model]="[
+            {label: 'Type'},
+            {label: 'Conditions'},
+            {label: 'Action'},
+            {label: 'Périmètre'}
+        ]" [activeIndex]="etapeCreation - 1" [readonly]="false"></p-steps>
+
+        <!-- Étape 1: Type -->
+        <div *ngIf="etapeCreation === 1" class="wizard-step">
+            <h3>Quel type de règle souhaitez-vous créer ?</h3>
+            <div class="type-selection">
+                <div class="type-card" 
+                     [class.selected]="nouvelleRegle.type === TypeRegle.LEGALE"
+                     (click)="nouvelleRegle.type = TypeRegle.LEGALE">
+                    <i class="pi pi-building"></i>
+                    <h4>Règle légale</h4>
+                    <p>Contraintes issues du code du travail</p>
+                </div>
+                <div class="type-card" 
+                     [class.selected]="nouvelleRegle.type === TypeRegle.INTERNE"
+                     (click)="nouvelleRegle.type = TypeRegle.INTERNE">
+                    <i class="pi pi-home"></i>
+                    <h4>Règle interne</h4>
+                    <p>Politiques internes de l'établissement</p>
+                </div>
+                <div class="type-card" 
+                     [class.selected]="nouvelleRegle.type === TypeRegle.EQUITE"
+                     (click)="nouvelleRegle.type = TypeRegle.EQUITE">
+                    <i class="pi pi-balance-scale"></i>
+                    <h4>Règle d'équité</h4>
+                    <p>Répartition équitable des charges</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape 2: Informations de base -->
+        <div *ngIf="etapeCreation === 2" class="wizard-step">
+            <h3>Informations de base</h3>
+            <div class="p-fluid">
+                <div class="field">
+                    <label>Nom de la règle *</label>
+                    <input type="text" pInputText [(ngModel)]="nouvelleRegle.nom" />
+                </div>
+                <div class="field">
+                    <label>Code *</label>
+                    <input type="text" pInputText [(ngModel)]="nouvelleRegle.code" />
+                </div>
+                <div class="field">
+                    <label>Description *</label>
+                    <textarea pInputTextarea [(ngModel)]="nouvelleRegle.description" rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape 3: Action -->
+        <div *ngIf="etapeCreation === 3" class="wizard-step">
+            <h3>Quelle action appliquer ?</h3>
+            <div class="p-fluid">
+                <div class="field">
+                    <label>Niveau d'alerte</label>
+                    <p-dropdown [options]="[
+                        {label: 'Information', value: NiveauAlerte.INFORMATION},
+                        {label: 'Avertissement', value: NiveauAlerte.AVERTISSEMENT},
+                        {label: 'Bloquant', value: NiveauAlerte.BLOQUANT}
+                    ]" 
+                    [(ngModel)]="nouvelleRegle.niveauAlerte" 
+                    optionLabel="label" 
+                    optionValue="value"
+                    appendTo="body"></p-dropdown>
+                </div>
+                <div class="field">
+                    <label>Message d'alerte</label>
+                    <input type="text" pInputText [(ngModel)]="nouvelleRegle.messageAlerte" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Étape 4: Périmètre -->
+        <div *ngIf="etapeCreation === 4" class="wizard-step">
+            <h3>Où et quand appliquer cette règle ?</h3>
+            <div class="p-fluid">
+                <div class="field">
+                    <label>Priorité</label>
+                    <p-dropdown [options]="[
+                        {label: 'Élevée', value: PrioriteRegle.ELEVEE},
+                        {label: 'Moyenne', value: PrioriteRegle.MOYENNE},
+                        {label: 'Basse', value: PrioriteRegle.BASSE}
+                    ]" 
+                    [(ngModel)]="nouvelleRegle.priorite" 
+                    optionLabel="label" 
+                    optionValue="value"
+                    appendTo="body"></p-dropdown>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire simple pour modification -->
+    <div class="p-fluid" *ngIf="nouvelleRegle.id">
+        <div class="field">
+            <label>Nom de la règle *</label>
+            <input type="text" pInputText [(ngModel)]="nouvelleRegle.nom" />
+        </div>
+        <div class="field">
+            <label>Description</label>
+            <textarea pInputTextarea [(ngModel)]="nouvelleRegle.description" rows="3"></textarea>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+                class="p-button-text" 
+                (click)="annulerCreation()"></button>
+        <button pButton label="Précédent" 
+                *ngIf="etapeCreation > 1 && !nouvelleRegle.id"
+                class="p-button-outlined" 
+                (click)="etapePrecedente()"></button>
+        <button pButton label="Suivant" 
+                *ngIf="etapeCreation < 4 && !nouvelleRegle.id"
+                (click)="etapeSuivante()"></button>
+        <button pButton label="Créer la règle" 
+                *ngIf="etapeCreation === 4 || nouvelleRegle.id"
+                class="p-button-primary" 
+                (click)="enregistrerRegle()"></button>
+    </ng-template>
+</p-dialog>
+
+<!-- MODALE EXCEPTION -->
+<p-dialog [(visible)]="afficherModaleException" 
+          header="Ajouter une exception"
+          [modal]="true" 
+          [style]="{width: '500px'}">
+    <div class="p-fluid">
+        <div class="field">
+            <label>Type</label>
+            <p-dropdown [options]="[
+                {label: 'Service', value: 'SERVICE'},
+                {label: 'Équipe', value: 'EQUIPE'},
+                {label: 'Utilisateur', value: 'UTILISATEUR'},
+                {label: 'Période', value: 'PERIODE'}
+            ]" 
+            [(ngModel)]="nouvelleException.type" 
+            optionLabel="label" 
+            optionValue="value"
+            appendTo="body"></p-dropdown>
+        </div>
+        <div class="field">
+            <label>Nom/Désignation *</label>
+            <input type="text" pInputText [(ngModel)]="nouvelleException.cibleNom" />
+        </div>
+        <div class="field">
+            <label>Motif *</label>
+            <input type="text" pInputText [(ngModel)]="nouvelleException.motif" />
+        </div>
+        <div class="field">
+            <label>Justification</label>
+            <textarea pInputTextarea [(ngModel)]="nouvelleException.justification" rows="3"></textarea>
+        </div>
+        <div class="field">
+            <label>Date début</label>
+            <p-calendar [(ngModel)]="nouvelleException.dateDebut" dateFormat="dd/mm/yy"></p-calendar>
+        </div>
+        <div class="field">
+            <label>Date fin (optionnel)</label>
+            <p-calendar [(ngModel)]="nouvelleException.dateFin" dateFormat="dd/mm/yy"></p-calendar>
+        </div>
+        <div class="field">
+            <label>Validé par</label>
+            <input type="text" pInputText [(ngModel)]="nouvelleException.validerParNom" />
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+                class="p-button-text" 
+                (click)="afficherModaleException = false"></button>
+        <button pButton label="Créer l'exception" 
+                class="p-button-primary" 
+                (click)="enregistrerException()"></button>
+    </ng-template>
+</p-dialog>
+
+<!-- MODALE TEST -->
+<p-dialog [(visible)]="afficherModaleTest" 
+          header="Tester la règle"
+          [modal]="true" 
+          [style]="{width: '600px'}">
+    <p>Fonctionnalité de test en cours de développement...</p>
+    
+    <ng-template pTemplate="footer">
+        <button pButton label="Fermer" 
+                (click)="afficherModaleTest = false"></button>
+    </ng-template>
+</p-dialog>

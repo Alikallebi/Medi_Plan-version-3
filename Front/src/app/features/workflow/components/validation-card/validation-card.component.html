@@ -1,0 +1,70 @@
+<article class="validation-card" [ngClass]="urgencyClass">
+    <header class="card-header">
+        <h3>📅 {{ planningTitle }}</h3>
+        <span class="status-badge" [ngClass]="planning.workflowStatus.status.toLowerCase()">{{ planning.workflowStatus.status }}</span>
+    </header>
+
+    <div class="card-meta">
+        <p>📌 Service: <strong>{{ planning.serviceName }}</strong></p>
+        <p>👤 Créé par: <strong>{{ createdByLabel }}</strong> ({{ createdAtLabel }})</p>
+    </div>
+
+    <div class="card-progress">
+        <p>📊 Progression:</p>
+        <div class="stepper">
+            <ng-container *ngFor="let step of progressionLabels; let i = index">
+                <span
+                    class="step"
+                    [ngClass]="{
+                        done: i < currentStepIndex,
+                        current: i === currentStepIndex,
+                        todo: i > currentStepIndex
+                    }"
+                >
+                    {{ i < currentStepIndex ? '✅' : (i === currentStepIndex ? '⏳' : '⬜') }} {{ step }}
+                </span>
+                <span class="separator" *ngIf="i < progressionLabels.length - 1">→</span>
+            </ng-container>
+        </div>
+    </div>
+
+    <div class="card-deadline">
+        <p>⏰ En attente depuis: <strong>{{ waitingDays }} jour(s)</strong></p>
+        <p *ngIf="remainingHours > 0">⚠️ Délai limite: <strong>dans {{ remainingHours }} heure(s)</strong></p>
+        <p *ngIf="remainingHours === 0" class="overdue">⚠️ Délai limite dépassé</p>
+    </div>
+
+    <footer class="card-actions">
+        <button type="button" class="btn btn-details" (click)="onVoirDetails()">👁️ Voir détails</button>
+        <button type="button" class="btn btn-approve" *ngIf="peutValider" (click)="onValider()">
+            {{ estValidationFinale ? '✓✓✓ VALIDATION FINALE' : '✓✓ Valider' }}
+        </button>
+        <button type="button" class="btn btn-reject" *ngIf="peutValider" (click)="onRejeter()">✗ Rejeter</button>
+        <button type="button" class="btn btn-modif" *ngIf="peutValider" (click)="onDemanderModification()">✏️ Modif</button>
+    </footer>
+</article>
+
+<app-approbation-modal
+    *ngIf="showApprobationModal"
+    [planning]="planning"
+    [etapeActuelle]="currentStepIndex + 1"
+    [isSubmitting]="isSubmittingAction"
+    (confirm)="onApprobationConfirm($event)"
+    (cancel)="closeModals()">
+</app-approbation-modal>
+
+<app-rejet-modal
+    *ngIf="showRejetModal"
+    [planning]="planning"
+    [isSubmitting]="isSubmittingAction"
+    (confirm)="onRejetConfirm($event)"
+    (cancel)="closeModals()">
+</app-rejet-modal>
+
+<app-demande-modification-modal
+    *ngIf="showDemandeModal"
+    [planning]="planning"
+    [isSubmitting]="isSubmittingAction"
+    (confirm)="onDemandeConfirm($event)"
+    (cancel)="closeModals()">
+</app-demande-modification-modal>

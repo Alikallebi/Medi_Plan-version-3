@@ -1,0 +1,39 @@
+<div class="modal-backdrop" (click)="onCancel()">
+    <div class="modal-card danger" (click)="$event.stopPropagation()">
+        <header>
+            <h3>❌ REJETER LE PLANNING</h3>
+            <button type="button" (click)="onCancel()">✖</button>
+        </header>
+
+        <p><strong>Planning:</strong> {{ planning.serviceName }} ({{ planning.id }})</p>
+
+        <label>Motif du rejet *</label>
+        <select
+            title="Motif du rejet"
+            aria-label="Motif du rejet"
+            [(ngModel)]="motif"
+            [disabled]="isSubmitting">
+            <option value="">Sélectionner un motif</option>
+            <option *ngFor="let item of motifs" [value]="item">{{ item }}</option>
+        </select>
+
+        <div *ngIf="isAutreMotif">
+            <label>Préciser le motif *</label>
+            <input type="text" [(ngModel)]="autreMotif" [disabled]="isSubmitting" />
+        </div>
+
+        <label>Commentaire détaillé *</label>
+        <textarea rows="4" [(ngModel)]="commentaire" [disabled]="isSubmitting"></textarea>
+
+        <label>Date limite de modification (optionnelle)</label>
+        <input type="date" [(ngModel)]="dateLimite" [disabled]="isSubmitting" />
+
+        <footer>
+            <button type="button" class="btn cancel" (click)="onCancel()" [disabled]="isSubmitting">✖ Annuler</button>
+            <button type="button" class="btn confirm" (click)="onConfirm()" [disabled]="!isFormValid || isSubmitting">
+                <span *ngIf="!isSubmitting">🗑️ Confirmer le rejet</span>
+                <span *ngIf="isSubmitting">⏳ En cours...</span>
+            </button>
+        </footer>
+    </div>
+</div>

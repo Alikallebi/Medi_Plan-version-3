@@ -1,0 +1,18 @@
+.med-layout-shell {
+    min-height: 100vh;
+    background: #f8fafc;
+}
+
+.med-layout-body {
+    display: flex;
+    padding-top: 80px;
+    min-height: calc(100vh - 80px);
+    gap: 0;
+}
+
+.med-layout-main {
+    flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}

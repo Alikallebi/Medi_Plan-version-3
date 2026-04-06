@@ -1,0 +1,438 @@
+:host {
+    display: block;
+    height: 100%;
+    width: 280px;
+    flex: 0 0 280px;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:host:has(.med-sidebar.collapsed) {
+    width: 90px;
+    flex-basis: 90px;
+}
+
+.med-sidebar {
+    width: 280px;
+    height: calc(100vh - 80px);
+    background: linear-gradient(180deg, #ffffff 0%, #f9fcff 100%);
+    border-right: 1px solid rgba(0, 112, 243, 0.12);
+    padding: 1.2rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-shadow: 4px 0 20px rgba(0, 112, 243, 0.06);
+    position: fixed;
+    top: 80px;
+    left: 0;
+    z-index: 30;
+    flex-shrink: 0;
+}
+
+.med-sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #0070f3 0%, #00c2b8 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.med-sidebar:hover::before {
+    opacity: 1;
+}
+
+.med-sidebar.collapsed {
+    width: 90px;
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+}
+
+.collapse-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 112, 243, 0.15);
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0070f3;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 112, 243, 0.08);
+}
+
+.collapse-btn:hover {
+    background: #0070f3;
+    color: white;
+    border-color: #0070f3;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 112, 243, 0.2);
+}
+
+.sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.section-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #0070f3;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem 0.5rem 0.75rem;
+    margin: 0.25rem 0;
+    background: rgba(0, 112, 243, 0.04);
+    border-radius: 8px;
+    border-left: 3px solid #0070f3;
+}
+
+.nav-item,
+.sub-item {
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    min-height: 40px;
+    padding: 0.6rem 1rem 0.6rem 2.2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.9rem;
+    position: relative;
+    width: 100%;
+}
+
+.nav-item {
+    padding-left: 1rem;
+}
+
+.nav-item i,
+.sub-item i {
+    width: 20px;
+    font-size: 1rem;
+    color: #5b6e8c;
+    transition: all 0.2s ease;
+}
+
+.sub-item i {
+    font-size: 0.85rem;
+    color: #6b7b95;
+}
+
+.nav-item:hover,
+.sub-item:hover {
+    background: rgba(0, 112, 243, 0.06);
+    color: #0070f3;
+    transform: translateX(4px);
+}
+
+.nav-item:hover i,
+.sub-item:hover i {
+    color: #0070f3;
+}
+
+/* Style pour les items directement sous une section */
+.sidebar-section > .nav-item,
+.sidebar-section > .sub-item {
+    margin-left: 0;
+}
+
+/* Indentation pour les sous-éléments */
+.sub-item {
+    margin-left: 0.5rem;
+    border-left: 2px solid rgba(0, 112, 243, 0.15);
+    border-radius: 0 10px 10px 0;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(0, 112, 243, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sidebar-footer .nav-item {
+    padding-left: 1rem;
+}
+
+.logout-item {
+    color: #dc2626;
+    margin-top: 0.5rem;
+    background: rgba(220, 38, 38, 0.04);
+    border: 1px solid rgba(220, 38, 38, 0.1);
+}
+
+.logout-item i {
+    color: #dc2626;
+}
+
+.logout-item:hover {
+    background: #dc2626;
+    color: white;
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.logout-item:hover i {
+    color: white;
+}
+
+/* Style pour les items actifs */
+.nav-item.active,
+.sub-item.active {
+    background: rgba(0, 112, 243, 0.1);
+    color: #0070f3;
+    font-weight: 600;
+}
+
+.nav-item.active i,
+.sub-item.active i {
+    color: #0070f3;
+}
+
+/* Mode collapsed */
+.med-sidebar.collapsed .nav-item,
+.med-sidebar.collapsed .sub-item {
+    padding: 0.65rem;
+    justify-content: center;
+    margin-left: 0;
+    border-left: none;
+}
+
+.med-sidebar.collapsed .nav-item i,
+.med-sidebar.collapsed .sub-item i {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.med-sidebar.collapsed .section-title {
+    text-align: center;
+    font-size: 0.6rem;
+    padding: 0.5rem 0;
+    border-left: none;
+    background: transparent;
+    color: #94a3b8;
+}
+
+.med-sidebar.collapsed .sub-item {
+    display: none; /* Cacher les sous-éléments en mode collapsed */
+}
+
+.med-sidebar.collapsed .sidebar-section {
+    align-items: center;
+}
+
+/* Animation au survol */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.nav-item:active,
+.sub-item:active {
+    transform: scale(0.98);
+}
+
+/* Scroll personnalisé */
+.med-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.med-sidebar::-webkit-scrollbar-track {
+    background: rgba(0, 112, 243, 0.05);
+}
+
+.med-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(0, 112, 243, 0.3);
+    border-radius: 4px;
+}
+
+.med-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 112, 243, 0.5);
+}
+
+/* Media queries */
+@media (max-width: 1024px) {
+    :host {
+        width: 90px;
+        flex-basis: 90px;
+    }
+
+    .med-sidebar {
+        width: 90px;
+    }
+    
+    .med-sidebar .section-title {
+        font-size: 0.6rem;
+        padding: 0.5rem 0;
+    }
+    
+    .med-sidebar .sub-item {
+        display: none;
+    }
+}
+
+/* Style spécifique pour les icônes PrimeNG */
+.pi {
+    font-size: 1rem;
+}
+/* Ajouter à la fin du fichier CSS existant */
+
+.section-header {
+    font-weight: 700;
+    color: #0070f3;
+    background: rgba(0, 112, 243, 0.04);
+    margin-top: 0.5rem;
+    border-left: 3px solid #0070f3;
+}
+
+.section-header:first-of-type {
+    margin-top: 0;
+}
+
+.section-header i {
+    color: #0070f3;
+}
+
+.section-header:hover {
+    background: rgba(0, 112, 243, 0.08);
+    transform: translateX(4px);
+}
+
+/* Mode collapsed */
+.med-sidebar.collapsed .section-header {
+    background: transparent;
+    border-left: none;
+}
+
+.med-sidebar.collapsed .sub-item {
+    display: none;
+}
+/* Styles pour les titres de catégorie (non cliquables) */
+.category-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #0070f3;
+    background: rgba(0, 112, 243, 0.04);
+    border-left: 3px solid #0070f3;
+    border-radius: 0 8px 8px 0;
+    cursor: default;  /* Pas de curseur pointer */
+    pointer-events: none;  /* Empêche tout événement de clic */
+    user-select: none;  /* Empêche la sélection du texte */
+}
+
+.category-title:first-of-type {
+    margin-top: 0;
+}
+
+.category-title i {
+    color: #0070f3;
+    font-size: 1rem;
+    width: 20px;
+}
+
+/* Style pour les sous-éléments (cliquables) */
+.sub-item {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    min-height: 38px;
+    padding: 0.5rem 1rem 0.5rem 2.8rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    font-weight: 500;
+    font-size: 0.88rem;
+    width: 100%;
+    position: relative;
+}
+
+.sub-item i {
+    width: 18px;
+    font-size: 0.9rem;
+    color: #64748b;
+    transition: all 0.2s ease;
+    position: absolute;
+    left: 1rem;
+}
+
+.sub-item:hover {
+    background: rgba(0, 112, 243, 0.06);
+    color: #0070f3;
+    transform: translateX(4px);
+}
+
+.sub-item:hover i {
+    color: #0070f3;
+}
+
+/* Mode collapsed */
+.med-sidebar.collapsed .category-title {
+    padding: 0.65rem;
+    justify-content: center;
+    border-left: none;
+    background: transparent;
+    margin: 0.25rem 0;
+    pointer-events: none;
+}
+
+.med-sidebar.collapsed .category-title i {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.med-sidebar.collapsed .category-title span {
+    display: none;
+}
+
+.med-sidebar.collapsed .sub-item {
+    display: none;  /* Cache les sous-éléments en mode collapsed */
+}
+
+.med-sidebar.collapsed .sub-item {
+    padding: 0.65rem;
+    justify-content: center;
+}
+
+/* Media queries */
+@media (max-width: 1024px) {
+    .med-sidebar .category-title {
+        padding: 0.65rem;
+        justify-content: center;
+        border-left: none;
+    }
+    
+    .med-sidebar .sub-item {
+        display: none;
+    }
+}

@@ -1,0 +1,52 @@
+<section class="comment-section">
+    <div class="state" *ngIf="isLoading">Chargement des commentaires...</div>
+
+    <div class="state error" *ngIf="!isLoading && hasError">
+        <p>{{ errorMessage }}</p>
+        <button type="button" class="btn" (click)="retry.emit()">Réessayer</button>
+    </div>
+
+    <ng-container *ngIf="!isLoading && !hasError">
+        <article class="comment-item" *ngFor="let item of comments">
+            <header>
+                <strong>👤 {{ item.auteurNom }}</strong>
+                <span>{{ item.auteurRole }}</span>
+                <time>{{ item.createdAt | date:'dd/MM/yyyy HH:mm' }}</time>
+            </header>
+            <p>{{ item.message }}</p>
+            <ul class="attachment-inline" *ngIf="item.attachments?.length">
+                <li *ngFor="let file of item.attachments">📎 {{ file.fileName }}</li>
+            </ul>
+        </article>
+
+        <p class="empty" *ngIf="comments.length === 0">Aucun commentaire pour le moment.</p>
+
+        <div class="composer">
+            <label for="workflow-comment-input">Ajouter un commentaire</label>
+            <textarea
+                id="workflow-comment-input"
+                rows="3"
+                [(ngModel)]="draft"
+                [disabled]="isSubmitting"
+                placeholder="Ajouter un commentaire..."
+            ></textarea>
+
+            <div class="select-files" *ngIf="attachments.length > 0">
+                <p>Pièces jointes à lier :</p>
+                <label *ngFor="let file of attachments" class="file-option">
+                    <input
+                        type="checkbox"
+                        [checked]="selectedAttachmentIds.includes(file.id)"
+                        [disabled]="isSubmitting"
+                        (change)="onToggleAttachment(file.id, $any($event.target).checked)"
+                    />
+                    {{ file.fileName }}
+                </label>
+            </div>
+
+            <button type="button" class="btn primary" [disabled]="!isDraftValid || isSubmitting" (click)="onSubmit()">
+                {{ isSubmitting ? 'Envoi...' : 'Envoyer' }}
+            </button>
+        </div>
+    </ng-container>
+</section>

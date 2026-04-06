@@ -1,0 +1,171 @@
+<header class="med-topbar">
+    <div class="left-zone">
+        <button type="button" class="logo-button" (click)="goHome()" aria-label="Accueil">
+            <!-- Logo image remplace le logo-mark -->
+            <img src="assets/layout/images/logo.png" alt="MediPlan" class="logo-image">
+            
+        </button>
+
+        <div class="welcome-message">
+            <span class="user-name">Welcome {{ getUserName() }}</span>
+            <span class="user-role">({{ getUserRole() }})</span>
+            <span class="user-service">
+                <i class="pi pi-building"></i>
+                {{ getUserService() }}
+                <span class="service-id" *ngIf="getUserServiceId()">#{{ getUserServiceId() }}</span>
+            </span>
+        </div>
+
+        <div class="service-dropdown" [class.open]="serviceDropdownOpen">
+            <button type="button" class="service-trigger" (click)="toggleServiceDropdown($event)">
+                <span class="trigger-main">
+                    <i class="pi pi-building"></i>
+                    <span class="service-label">Service : {{ currentService?.nom }}</span>
+                </span>
+                <i class="pi" [ngClass]="serviceDropdownOpen ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+            </button>
+
+            <div class="dropdown-menu" *ngIf="serviceDropdownOpen" (click)="$event.stopPropagation()">
+                <div class="search-box">
+                    <i class="pi pi-search"></i>
+                    <input
+                        type="text"
+                        [ngModel]="serviceSearch"
+                        (ngModelChange)="onSearchServices($event)"
+                        placeholder="Rechercher un service" />
+                </div>
+
+                <div class="service-list">
+                    <button
+                        type="button"
+                        class="service-item"
+                        *ngFor="let service of filteredServices"
+                        [class.selected]="service.id === currentService?.id"
+                        (click)="selectService(service)">
+                        <i class="service-icon pi pi-building" [style.color]="service.couleur || '#10b981'"></i>
+                        <div class="service-meta">
+                            <span class="name">{{ service.nom }}</span>
+                            <span class="staff">{{ service.code }}</span>
+                        </div>
+                        <span class="status" [class.inactive]="service.statut === 'inactif'">{{ service.statut === 'actif' ? 'Actif' : 'Inactif' }}</span>
+                        <i
+                            class="pi star"
+                            [ngClass]="service.favorite ? 'pi-star-fill favorite' : 'pi-star'"
+                            (click)="toggleFavorite(service, $event)"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-zone">
+        <button
+            type="button"
+            class="icon-btn"
+            pTooltip="Notifications"
+            tooltipPosition="bottom"
+            (click)="toggleNotificationsPanel($event)">
+            <i class="pi pi-bell"></i>
+            <span class="notif-badge" *ngIf="unreadCount > 0">{{ getUnreadBadgeLabel() }}</span>
+        </button>
+
+        <div class="profile-wrapper" [class.open]="profileMenuOpen">
+            <button
+                type="button"
+                class="profile-trigger"
+                pTooltip="Profil"
+                tooltipPosition="bottom"
+                (click)="toggleProfileMenu($event)">
+                <img
+                    *ngIf="profilePhotoUrl; else initialsAvatar"
+                    class="profile-photo"
+                    [src]="profilePhotoUrl"
+                    alt="Photo de profil"
+                    title="Profil" />
+                <ng-template #initialsAvatar>
+                    <span class="avatar">{{ getProfileInitials() }}</span>
+                </ng-template>
+            </button>
+
+            <div class="profile-menu" *ngIf="profileMenuOpen" (click)="$event.stopPropagation()">
+                <div class="profile-header">
+                    <strong>{{ getUserName() }}</strong>
+                    <span>{{ getUserEmail() }}</span>
+                </div>
+                <button type="button" class="profile-item" (click)="goToProfile()">
+                    <i class="pi pi-user"></i>
+                    Mon profil
+                </button>
+                <button type="button" class="profile-item" (click)="goToAccountSettings()">
+                    <i class="pi pi-cog"></i>
+                    Paramètres du compte
+                </button>
+                <button type="button" class="profile-item" (click)="goToHelp()">
+                    <i class="pi pi-question-circle"></i>
+                    Aide & support
+                </button>
+                <hr>
+                <button type="button" class="profile-item danger" (click)="logout()">
+                    <i class="pi pi-sign-out"></i>
+                    Déconnexion
+                </button>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="service-overlay" *ngIf="serviceDropdownOpen" (click)="serviceDropdownOpen = false"></div>
+
+<div class="notif-overlay" *ngIf="notificationsPanelOpen" (click)="notificationsPanelOpen = false">
+    <aside class="notif-panel" (click)="$event.stopPropagation()">
+        <div class="panel-header">
+            <h3>Notifications</h3>
+            <button type="button" class="link-btn" (click)="markAllAsRead()">Marquer tout comme lu</button>
+        </div>
+
+        <div class="notif-items">
+            <div class="notif-group" *ngIf="unreadNotifications.length > 0">
+                <p class="notif-group-title">Non lues</p>
+                <article
+                    class="notif-item"
+                    *ngFor="let item of unreadNotifications"
+                    [class.read]="item.read"
+                    (click)="onNotificationClick(item)">
+                    <span class="notif-type" [ngClass]="item.type">
+                        <i [class]="getNotificationIcon(item.type)"></i>
+                    </span>
+                    <div class="notif-content">
+                        <strong>{{ item.title }}</strong>
+                        <p>{{ item.description }}</p>
+                        <span>{{ item.timeAgo }}</span>
+                    </div>
+                </article>
+            </div>
+
+            <div class="notif-group" *ngIf="readNotifications.length > 0">
+                <p class="notif-group-title">Lues</p>
+                <article
+                    class="notif-item"
+                    *ngFor="let item of readNotifications"
+                    [class.read]="item.read"
+                    (click)="onNotificationClick(item)">
+                    <span class="notif-type" [ngClass]="item.type">
+                        <i [class]="getNotificationIcon(item.type)"></i>
+                    </span>
+                    <div class="notif-content">
+                        <strong>{{ item.title }}</strong>
+                        <p>{{ item.description }}</p>
+                        <span>{{ item.timeAgo }}</span>
+                    </div>
+                </article>
+            </div>
+
+            <div class="empty-notifications" *ngIf="notifications.length === 0">
+                <i class="pi pi-inbox"></i>
+                <p>Aucune notification pour le moment</p>
+            </div>
+        </div>
+
+        <button type="button" class="view-all-btn" (click)="goToNotificationsPage()">Voir toutes les notifications</button>
+    </aside>
+</div>

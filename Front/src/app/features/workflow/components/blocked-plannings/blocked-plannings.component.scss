@@ -1,0 +1,31 @@
+.blocked-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.blocked-table th,
+.blocked-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.55rem;
+    text-align: left;
+}
+
+.actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+}
+
+.empty {
+    margin: 0;
+    color: #64748b;
+}

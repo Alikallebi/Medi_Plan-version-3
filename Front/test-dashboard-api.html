@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Dashboard API</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .test { margin: 10px 0; padding: 10px; background: white; border-radius: 5px; }
+        .success { border-left: 4px solid green; }
+        .error { border-left: 4px solid red; }
+        pre { background: #f5f5f5; padding: 10px; overflow: auto; max-height: 300px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Test API Dashboard - Backend Connection</h1>
+    <button onclick="testAll()">🔄 Tester tous les endpoints</button>
+    <button onclick="clearResults()">🗑️ Effacer</button>
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5239';
+
+        async function testEndpoint(name, url) {
+            const resultsDiv = document.getElementById('results');
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test';
+            testDiv.innerHTML = `<h3>${name}</h3><p>🔄 En cours...</p>`;
+            resultsDiv.appendChild(testDiv);
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    testDiv.className = 'test success';
+                    testDiv.innerHTML = `
+                        <h3>✅ ${name}</h3>
+                        <p><strong>Status:</strong> ${response.status} OK</p>
+                        <p><strong>URL:</strong> ${url}</p>
+                        <p><strong>Données reçues:</strong></p>
+                        <pre>${JSON.stringify(data, null, 2).substring(0, 1000)}...</pre>
+                    `;
+                } else {
+                    throw new Error(`Status ${response.status}`);
+                }
+            } catch (error) {
+                testDiv.className = 'test error';
+                testDiv.innerHTML = `
+                    <h3>❌ ${name}</h3>
+                    <p><strong>Erreur:</strong> ${error.message}</p>
+                    <p><strong>URL:</strong> ${url}</p>
+                    <p>Vérifiez que le backend tourne sur http://localhost:5239</p>
+                `;
+            }
+        }
+
+        async function testAll() {
+            clearResults();
+            await testEndpoint('1. Statistiques Structure', `${API_URL}/api/structure/statistiques`);
+            await testEndpoint('2. Planning Overview', `${API_URL}/api/planning/overview`);
+            await testEndpoint('3. Staff', `${API_URL}/api/staff`);
+            await testEndpoint('4. Services', `${API_URL}/api/structure/services`);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Test automatique au chargement
+        window.onload = () => {
+            console.log('%c🔍 Test Dashboard API', 'color: blue; font-size: 20px; font-weight: bold;');
+            console.log('Utilisez cette page pour vérifier la connexion au backend');
+        };
+    </script>
+</body>
+</html>

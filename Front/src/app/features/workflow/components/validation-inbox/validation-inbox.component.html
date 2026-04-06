@@ -1,0 +1,136 @@
+<section class="workflow-inbox-page">
+    <app-workflow-toast></app-workflow-toast>
+
+    <header class="inbox-header">
+        <div>
+            <h1>📋 VALIDATIONS EN ATTENTE</h1>
+            <p>Bienvenue {{ userName }} ({{ userRole }})</p>
+            <p aria-live="polite" aria-atomic="true">⏳ En attente de votre validation : <strong>{{ waitingCount }}</strong> plannings</p>
+            <p>✅ Déjà traité ce mois : <strong>{{ treatedThisMonthCount }}</strong></p>
+        </div>
+
+        <div class="header-right">
+            <div class="header-actions">
+                <button
+                    type="button"
+                    class="btn-admin"
+                    *ngIf="isAdmin"
+                    (click)="goToAdminDashboard()">
+                    📊 Dashboard Admin
+                </button>
+                <button type="button" class="btn-refresh" (click)="loadPlannings()">⟳ Actualiser</button>
+            </div>
+
+            <div class="filters-panel">
+            <label for="workflow-search" class="sr-only">Rechercher un planning ou service</label>
+            <input
+                id="workflow-search"
+                type="text"
+                placeholder="Recherche planning ou service"
+                aria-label="Recherche planning ou service"
+                [(ngModel)]="searchTerm"
+                (ngModelChange)="onFiltersChanged()"
+            />
+
+            <label for="workflow-service-filter" class="sr-only">Filtrer par service</label>
+            <select
+                id="workflow-service-filter"
+                title="Filtrer par service"
+                aria-label="Filtrer par service"
+                [(ngModel)]="selectedService"
+                (ngModelChange)="onFiltersChanged()">
+                <option value="all">Tous les services</option>
+                <option *ngFor="let service of serviceOptions" [value]="service">{{ service }}</option>
+            </select>
+
+            <label for="workflow-status-filter" class="sr-only">Filtrer par statut</label>
+            <select
+                id="workflow-status-filter"
+                title="Filtrer par statut"
+                aria-label="Filtrer par statut"
+                [(ngModel)]="selectedStatus"
+                (ngModelChange)="onFiltersChanged()">
+                <option value="all">Tous statuts</option>
+                <option value="EN_ATTENTE_N1">En attente N1</option>
+                <option value="EN_ATTENTE_N2">En attente N2</option>
+                <option value="urgent">Urgent (&lt;24h)</option>
+                <option value="overdue">Délai dépassé</option>
+            </select>
+
+            <label for="workflow-sort-filter" class="sr-only">Trier les plannings</label>
+            <select
+                id="workflow-sort-filter"
+                title="Trier les plannings"
+                aria-label="Trier les plannings"
+                [(ngModel)]="sortBy"
+                (ngModelChange)="onFiltersChanged()">
+                <option value="urgence">Tri urgence</option>
+                <option value="date">Tri date</option>
+                <option value="service">Tri service</option>
+            </select>
+            </div>
+        </div>
+    </header>
+
+    <section *ngIf="isLoading" class="skeleton-grid">
+        <div class="skeleton-card" *ngFor="let sk of [1,2,3,4]"></div>
+    </section>
+
+    <section *ngIf="!isLoading && hasError" class="error-state">
+        <p>⚠️ {{ errorMessage }}</p>
+        <button type="button" (click)="loadPlannings()">Réessayer</button>
+    </section>
+
+    <section *ngIf="!isLoading && !hasError && isSuperAdmin && planningsFinaux.length > 0" class="section-block final-section">
+        <h2>🔴 VALIDATIONS FINALES EN ATTENTE</h2>
+        <div class="cards-grid">
+            <app-validation-card
+                *ngFor="let planning of planningsFinaux; trackBy: trackByPlanning"
+                [planning]="planning"
+                [userContext]="userContext"
+                [showActions]="true"
+                (voirDetails)="onVoirDetails($event)"
+                (valider)="onValider($event)"
+                (rejeter)="onRejeter($event)"
+                (demanderModification)="onDemanderModification($event)">
+            </app-validation-card>
+        </div>
+    </section>
+
+    <section *ngIf="!isLoading && !hasError" class="section-block">
+        <h2>En attente de ma validation</h2>
+
+        <div *ngIf="planningsEnAttente.length === 0" class="empty-state">
+            <p>📭 Aucun planning en attente de validation</p>
+        </div>
+
+        <div *ngIf="planningsEnAttente.length > 0" class="cards-grid">
+            <app-validation-card
+                *ngFor="let planning of planningsEnAttente; trackBy: trackByPlanning"
+                [planning]="planning"
+                [userContext]="userContext"
+                [showActions]="true"
+                (voirDetails)="onVoirDetails($event)"
+                (valider)="onValider($event)"
+                (rejeter)="onRejeter($event)"
+                (demanderModification)="onDemanderModification($event)">
+            </app-validation-card>
+        </div>
+    </section>
+
+    <section *ngIf="!isLoading && !hasError" class="section-block">
+        <h2>Récemment traité</h2>
+        <div *ngIf="planningsRecents.length === 0" class="empty-state">
+            <p>— Aucun planning traité récemment —</p>
+        </div>
+        <div *ngIf="planningsRecents.length > 0" class="cards-grid">
+            <app-validation-card
+                *ngFor="let planning of planningsRecents; trackBy: trackByPlanning"
+                [planning]="planning"
+                [userContext]="userContext"
+                [showActions]="false"
+                (voirDetails)="onVoirDetails($event)">
+            </app-validation-card>
+        </div>
+    </section>
+</section>

@@ -1,0 +1,32 @@
+<div class="modal-backdrop" (click)="onCancel()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+        <header>
+            <h3>✅ APPROUVER LE PLANNING</h3>
+            <button type="button" (click)="onCancel()">✖</button>
+        </header>
+
+        <p><strong>Planning:</strong> {{ planning.serviceName }} ({{ planning.id }})</p>
+        <p><strong>Étape:</strong> {{ etapeActuelle }}/4</p>
+
+        <label>Commentaire (optionnel)</label>
+        <textarea rows="3" [(ngModel)]="commentaire" [disabled]="isSubmitting"></textarea>
+
+        <label class="check-row">
+            <input type="checkbox" [(ngModel)]="notifierCreateur" [disabled]="isSubmitting" />
+            Notifier le créateur
+        </label>
+
+        <label class="check-row">
+            <input type="checkbox" [(ngModel)]="notifierAutresValidateurs" [disabled]="isSubmitting" />
+            Notifier les autres validateurs
+        </label>
+
+        <footer>
+            <button type="button" class="btn cancel" (click)="onCancel()" [disabled]="isSubmitting">✖ Annuler</button>
+            <button type="button" class="btn confirm" (click)="onConfirm()" [disabled]="isSubmitting">
+                <span *ngIf="!isSubmitting">✓ Confirmer</span>
+                <span *ngIf="isSubmitting">⏳ En cours...</span>
+            </button>
+        </footer>
+    </div>
+</div>

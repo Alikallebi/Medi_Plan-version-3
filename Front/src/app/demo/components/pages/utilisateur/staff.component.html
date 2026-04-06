@@ -1,0 +1,890 @@
+<div class="user-management-page">
+    <p-toast></p-toast>
+
+    <!-- EN-TÊTE DE PAGE -->
+    <div class="page-header">
+        <div class="grid">
+            <div class="col-12 md:col-8">
+                <div class="header-title">
+                    <i class="pi pi-users title-icon" aria-hidden="true"></i>
+                    <span>Gestion des utilisateurs</span>
+                </div>
+                <div class="user-count">
+                    <span class="count-detail">{{totalUsers}} utilisateurs au total</span>
+                    <span> • {{activeUsers}} actifs • {{inactiveUsers}} inactifs</span>
+                </div>
+            </div>
+            <div class="col-12 md:col-4">
+                <div class="header-actions flex justify-content-end">
+                    <button pButton 
+                        label="Nouvel utilisateur" 
+                        icon="pi pi-plus" 
+                        class="p-button-primary"
+                        *ngIf="rbac.canEdit('admin.utilisateurs')"
+                        (click)="openNew()"></button>
+                    <button pButton 
+                        label="Importer" 
+                        icon="pi pi-upload" 
+                        class="p-button-secondary"
+                        *ngIf="rbac.canEdit('admin.utilisateurs')"
+                        (click)="showImportDialog()"></button>
+                    <button pButton 
+                        icon="pi pi-download" 
+                        class="p-button-secondary"
+                        (click)="menu.toggle($event)"
+                        pTooltip="Exporter"></button>
+                    <p-menu #menu [model]="exportMenuItems" [popup]="true"></p-menu>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BARRE DE RECHERCHE ET FILTRES -->
+    <div class="search-filter-section">
+        <div class="search-bar">
+            <span class="p-input-icon-left w-100">
+                <i class="pi pi-search"></i>
+                <input pInputText 
+                    type="text" 
+                    [(ngModel)]="searchText"
+                    (input)="onSearch()"
+                    placeholder="Rechercher par nom, prénom, email ou matricule..."
+                    class="w-100">
+                <span *ngIf="searchText" class="clear-search" (click)="clearSearch()">×</span>
+            </span>
+        </div>
+
+        <div class="flex justify-content-between align-items-center">
+            <button pButton 
+                label="Filtres avancés" 
+                icon="pi pi-filter" 
+                class="p-button-text"
+                (click)="showFilters = !showFilters"></button>
+            <span *ngIf="hasActiveFilters()" 
+                class="text-sm text-primary cursor-pointer"
+                (click)="resetFilters()">
+                Réinitialiser les filtres
+            </span>
+        </div>
+
+        <!-- PANNEAU DES FILTRES -->
+        <div class="filter-panel" *ngIf="showFilters">
+            <div class="filter-grid">
+                <div class="form-field">
+                    <label>Service</label>
+                    <p-dropdown 
+                        [options]="services" 
+                        [(ngModel)]="filters.service"
+                        optionLabel="nom" 
+                        placeholder="Tous les services"
+                        [showClear]="true"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Rôle</label>
+                    <p-dropdown 
+                        [options]="roles" 
+                        [(ngModel)]="filters.role"
+                        optionLabel="label" 
+                        optionValue="value"
+                        placeholder="Tous les rôles"
+                        [showClear]="true"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Équipe</label>
+                    <p-dropdown 
+                        [options]="equipes" 
+                        [(ngModel)]="filters.equipe"
+                        optionLabel="nom" 
+                        placeholder="Toutes les équipes"
+                        [showClear]="true"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Statut</label>
+                    <p-dropdown 
+                        [options]="statusOptions" 
+                        [(ngModel)]="filters.status"
+                        optionLabel="label" 
+                        optionValue="value"
+                        placeholder="Tous"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+            </div>
+
+            <div class="filter-actions">
+                <button pButton 
+                    label="Réinitialiser" 
+                    class="p-button-text"
+                    (click)="resetFilters()"></button>
+                <button pButton 
+                    label="Appliquer" 
+                    class="p-button-primary"
+                    (click)="applyFilters()"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BARRE D'ACTIONS EN LOT -->
+    <div class="bulk-actions-bar" *ngIf="selectedStaff && selectedStaff.length > 0 && rbac.canEdit('admin.utilisateurs')">
+        <div class="selection-info">
+            {{selectedStaff.length}} élément(s) sélectionné(s)
+        </div>
+        <div class="bulk-buttons">
+            <button pButton 
+                label="Activer" 
+                icon="pi pi-check" 
+                class="p-button-success p-button-sm"
+                (click)="bulkActivate()"></button>
+            <button pButton 
+                label="Désactiver" 
+                icon="pi pi-times" 
+                class="p-button-warning p-button-sm"
+                (click)="bulkDeactivate()"></button>
+            <button pButton 
+                label="Changer le rôle" 
+                icon="pi pi-users" 
+                class="p-button-primary p-button-sm"
+                (click)="showBulkRoleDialog()"></button>
+            <button pButton 
+                label="Exporter sélection" 
+                icon="pi pi-download" 
+                class="p-button-secondary p-button-sm"
+                (click)="exportSelection()"></button>
+            <button pButton 
+                label="Tout désélectionner" 
+                class="p-button-text p-button-sm"
+                (click)="clearSelection()"></button>
+        </div>
+    </div>
+
+    <!-- TABLEAU DES UTILISATEURS -->
+    <div class="user-table">
+        <p-table #dt
+            [value]="filteredStaffList"
+            [(selection)]="selectedStaff"
+            dataKey="id"
+            [rows]="rowsPerPage"
+            [paginator]="true"
+            [rowsPerPageOptions]="[10, 25, 50, 100]"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="{first}-{last} sur {totalRecords} utilisateurs"
+            [loading]="loading"
+            responsiveLayout="scroll">
+
+            <ng-template pTemplate="header">
+                <tr>
+                    <th style="width: 40px">
+                        <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+                    </th>
+                    <th pSortableColumn="matricule" style="width: 120px">
+                        Matricule <p-sortIcon field="matricule"></p-sortIcon>
+                    </th>
+                    <th pSortableColumn="nom" style="width: 150px">
+                        Nom <p-sortIcon field="nom"></p-sortIcon>
+                    </th>
+                    <th pSortableColumn="prenom" style="width: 150px">
+                        Prénom <p-sortIcon field="prenom"></p-sortIcon>
+                    </th>
+                    <th pSortableColumn="email" style="width: 200px" class="hidden md:table-cell">
+                        Email <p-sortIcon field="email"></p-sortIcon>
+                    </th>
+                    <th pSortableColumn="role" style="width: 150px">
+                        Rôle <p-sortIcon field="role"></p-sortIcon>
+                    </th>
+                    <th style="width: 150px">Service principal</th>
+                    <th pSortableColumn="actif" style="width: 100px">
+                        Statut <p-sortIcon field="actif"></p-sortIcon>
+                    </th>
+                    <th style="width: 150px" class="hidden lg:table-cell">Dernière connexion</th>
+                    <th style="width: 120px">Actions</th>
+                </tr>
+            </ng-template>
+
+            <ng-template pTemplate="body" let-user>
+                <tr>
+                    <td>
+                        <p-tableCheckbox [value]="user"></p-tableCheckbox>
+                    </td>
+                    <td>{{user.matricule || 'N/A'}}</td>
+                    <td>{{user.nom}}</td>
+                    <td>{{user.prenom}}</td>
+                    <td class="hidden md:table-cell">{{user.email}}</td>
+                    <td>
+                        <span class="role-badge" [ngClass]="getRoleClass(user.role)">
+                            {{getRoleLabel(user.role)}}
+                        </span>
+                    </td>
+                    <td>{{user.service?.nom || user.service_nom || 'Non affecté'}}</td>
+                    <td>
+                        <span class="status-badge" [ngClass]="user.actif ? 'active' : 'inactive'">
+                            <span class="status-dot"></span>
+                            {{user.actif ? 'Actif' : 'Inactif'}}
+                        </span>
+                    </td>
+                    <td class="hidden lg:table-cell">{{formatLastConnection(user.lastConnection)}}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button pButton 
+                                icon="pi pi-eye" 
+                                class="p-button-rounded p-button-text p-button-info"
+                                pTooltip="Voir détails"
+                                (click)="viewDetails(user)"></button>
+                            <button pButton 
+                                icon="pi pi-pencil" 
+                                class="p-button-rounded p-button-text p-button-success"
+                                pTooltip="Modifier"
+                                *ngIf="rbac.canEdit('admin.utilisateurs')"
+                                (click)="editStaff(user)"></button>
+                            <button pButton 
+                                icon="pi pi-trash" 
+                                class="p-button-rounded p-button-text p-button-danger"
+                                pTooltip="Supprimer"
+                                *ngIf="rbac.canEdit('admin.utilisateurs')"
+                                (click)="deleteStaff(user)"></button>
+                            <button pButton 
+                                icon="pi pi-ellipsis-v" 
+                                class="p-button-rounded p-button-text"
+                                pTooltip="Plus d'actions"
+                                (click)="showActionsMenu($event, user)"></button>
+                        </div>
+                    </td>
+                </tr>
+            </ng-template>
+
+            <ng-template pTemplate="emptymessage">
+                <tr>
+                    <td colspan="10">
+                        <div class="empty-state">
+                            <div class="state-icon">📭</div>
+                            <div class="state-title">Aucun utilisateur trouvé</div>
+                            <div class="state-message">
+                                Aucun utilisateur ne correspond à vos critères de recherche.<br>
+                                Essayez de modifier vos filtres.
+                            </div>
+                            <button pButton 
+                                label="Réinitialiser les filtres" 
+                                class="p-button-outlined"
+                                (click)="resetFilters()"></button>
+                        </div>
+                    </td>
+                </tr>
+            </ng-template>
+
+            <ng-template pTemplate="loadingbody">
+                <tr>
+                    <td colspan="10">
+                        <div class="loading-container">
+                            <i class="pi pi-spin pi-spinner spinner"></i>
+                            <p>Chargement des utilisateurs...</p>
+                        </div>
+                    </td>
+                </tr>
+            </ng-template>
+        </p-table>
+    </div>
+</div>
+
+<!-- MENU CONTEXTE ACTIONS -->
+<p-menu #actionsMenu [model]="actionMenuItems" [popup]="true"></p-menu>
+
+<!-- MODALE CRÉATION/ÉDITION UTILISATEUR -->
+<p-dialog [(visible)]="staffDialog"
+    [header]="isEditMode ? 'Modifier l\'utilisateur' : 'Créer un nouvel utilisateur'"
+    [modal]="true"
+    [style]="{width:'900px', maxHeight:'90vh'}"
+    [dismissableMask]="true"
+    styleClass="user-edit-dialog">
+    
+    <ng-template pTemplate="header">
+        <div class="dialog-header-content">
+            <span class="header-icon">👤</span>
+            <div class="header-text">
+                <h3>{{isEditMode ? 'Modifier l\'utilisateur' : 'Créer un nouvel utilisateur'}}</h3>
+                <p>Tous les champs marqués * sont obligatoires</p>
+            </div>
+        </div>
+    </ng-template>
+
+    <p-tabView>
+        <!-- ONGLET 1: Informations personnelles -->
+        <p-tabPanel header="Infos perso">
+            <div class="form-grid two-columns">
+                <div class="form-field">
+                    <label>Matricule <span class="required">*</span></label>
+                    <input pInputText [(ngModel)]="staff.matricule" placeholder="MED-2026-001">
+                    <span class="field-hint">Format suggéré: MED-AAAA-NNN</span>
+                </div>
+
+                <div class="form-field">
+                    <label>Civilité</label>
+                    <p-dropdown 
+                        [options]="civiliteOptions" 
+                        [(ngModel)]="staff.civilite"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="Sélectionner"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Nom <span class="required">*</span></label>
+                    <input pInputText [(ngModel)]="staff.nom" placeholder="Dupont">
+                </div>
+
+                <div class="form-field">
+                    <label>Prénom <span class="required">*</span></label>
+                    <input pInputText [(ngModel)]="staff.prenom" placeholder="Jean">
+                </div>
+
+                <div class="form-field">
+                    <label>Date de naissance</label>
+                    <p-calendar [(ngModel)]="staff.dateNaissance" 
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        appendTo="body">
+                    </p-calendar>
+                </div>
+
+                <div class="form-field">
+                    <label>Téléphone fixe <span class="required">*</span></label>
+                    <input pInputText [(ngModel)]="staff.telephone" placeholder="+33 1 23 45 67 89">
+                </div>
+
+                <div class="form-field">
+                    <label>Téléphone mobile</label>
+                    <input pInputText [(ngModel)]="staff.mobile" placeholder="+33 6 12 34 56 78">
+                </div>
+
+                <div class="form-field">
+                    <label>Email professionnel <span class="required">*</span></label>
+                    <input pInputText type="email" [(ngModel)]="staff.email" placeholder="jean.dupont@hopital.fr">
+                </div>
+
+                <div class="form-field single-column">
+                    <label>Email personnel</label>
+                    <input pInputText type="email" [(ngModel)]="staff.emailPersonnel" placeholder="jean@gmail.com">
+                </div>
+            </div>
+
+            <div class="form-grid single-column">
+                <div class="form-field">
+                    <label>Adresse</label>
+                    <textarea pInputTextarea [(ngModel)]="staff.adresse" rows="3" placeholder="123 rue de la République"></textarea>
+                </div>
+
+                <div class="form-grid two-columns">
+                    <div class="form-field">
+                        <label>Code postal</label>
+                        <input pInputText [(ngModel)]="staff.codePostal" placeholder="75001">
+                    </div>
+
+                    <div class="form-field">
+                        <label>Ville</label>
+                        <input pInputText [(ngModel)]="staff.ville" placeholder="Paris">
+                    </div>
+                </div>
+            </div>
+        </p-tabPanel>
+
+        <!-- ONGLET 2: Compte et sécurité -->
+        <p-tabPanel header="Compte">
+            <div class="form-grid two-columns">
+                <div class="form-field">
+                    <label>Nom d'utilisateur <span class="required">*</span></label>
+                    <input pInputText [(ngModel)]="staff.username" placeholder="j.dupont">
+                </div>
+
+                <div class="form-field">
+                    <label>Mot de passe <span class="required" *ngIf="!isEditMode">*</span></label>
+                    <p-password [(ngModel)]="staff.password" 
+                        [feedback]="true"
+                        (ngModelChange)="checkPasswordStrength()"
+                        placeholder="********"
+                        [toggleMask]="true">
+                    </p-password>
+                    <div class="password-strength" *ngIf="staff.password">
+                        <div class="strength-bar">
+                            <div class="strength-fill" [ngClass]="passwordStrength"></div>
+                        </div>
+                        <div class="strength-text" [ngClass]="passwordStrength">
+                            {{getPasswordStrengthText()}}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-field" *ngIf="!isEditMode">
+                    <label>Confirmer mot de passe <span class="required">*</span></label>
+                    <p-password [(ngModel)]="staff.confirmPassword" 
+                        [feedback]="false"
+                        placeholder="********"
+                        [toggleMask]="true">
+                    </p-password>
+                </div>
+
+                <div class="form-field">
+                    <label>Date d'expiration du compte</label>
+                    <p-calendar [(ngModel)]="staff.expiration" 
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        placeholder="Optionnel"
+                        appendTo="body">
+                    </p-calendar>
+                </div>
+            </div>
+
+            <div class="form-grid single-column mt-15">
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.forceChangePassword" 
+                        [binary]="true"
+                        inputId="forceChange">
+                    </p-checkbox>
+                    <label for="forceChange" class="mb-0">Forcer le changement de mot de passe à la prochaine connexion</label>
+                </div>
+
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.twoFactorAuth" 
+                        [binary]="true"
+                        inputId="2fa">
+                    </p-checkbox>
+                    <label for="2fa" class="mb-0">Activer l'authentification à deux facteurs</label>
+                </div>
+
+                <div class="flex align-items-center gap-3">
+                    <label>Compte actif</label>
+                    <p-inputSwitch [(ngModel)]="staff.actif"></p-inputSwitch>
+                </div>
+            </div>
+        </p-tabPanel>
+
+        <!-- ONGLET 3: Affectations -->
+        <p-tabPanel header="Affectations">
+            <div class="affectation-list" *ngIf="staff.affectations && staff.affectations.length > 0">
+                <h4>Affectations actuelles</h4>
+                <div class="affectation-item" *ngFor="let aff of staff.affectations">
+                    <div class="affectation-info">
+                        <div class="affectation-title">
+                            {{aff.service?.nom || aff.service || 'Service non défini'}} - {{aff.equipe?.nom || aff.equipe || 'Équipe non définie'}}
+                            <span class="primary-badge" *ngIf="aff.principale">Principal</span>
+                        </div>
+                        <div class="affectation-details">
+                            {{formatDate(aff.dateDebut)}} - {{aff.dateFin ? formatDate(aff.dateFin) : 'Présent'}} | Taux: {{aff.taux}}%
+                        </div>
+                    </div>
+                    <div class="affectation-actions">
+                        <button pButton icon="pi pi-pencil" 
+                            class="p-button-rounded p-button-text p-button-sm"
+                            (click)="editAffectation(aff)"></button>
+                        <button pButton icon="pi pi-trash" 
+                            class="p-button-rounded p-button-text p-button-danger p-button-sm"
+                            (click)="deleteAffectation(aff)"></button>
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="mt-2">Ajouter une affectation</h4>
+            <div class="form-grid two-columns">
+                <div class="form-field">
+                    <label>Service <span class="required">*</span></label>
+                    <p-dropdown 
+                        [options]="services" 
+                        [(ngModel)]="newAffectation.service"
+                        optionLabel="nom"
+                        placeholder="Choisir un service"
+                        (ngModelChange)="onAffectationServiceChange()"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Équipe <span class="required">*</span></label>
+                    <p-dropdown 
+                        [options]="getEquipesForSelectedService()" 
+                        [(ngModel)]="newAffectation.equipe"
+                        optionLabel="nom"
+                        placeholder="Choisir une équipe"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Taux d'occupation <span class="required">*</span></label>
+                    <p-inputNumber [(ngModel)]="newAffectation.taux" 
+                        [min]="0" 
+                        [max]="100"
+                        suffix="%">
+                    </p-inputNumber>
+                </div>
+
+                <div class="form-field">
+                    <label>Date de début <span class="required">*</span></label>
+                    <p-calendar [(ngModel)]="newAffectation.dateDebut" 
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        appendTo="body">
+                    </p-calendar>
+                </div>
+
+                <div class="form-field">
+                    <label>Date de fin</label>
+                    <p-calendar [(ngModel)]="newAffectation.dateFin" 
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        placeholder="Optionnel"
+                        appendTo="body">
+                    </p-calendar>
+                </div>
+            </div>
+
+            <div class="flex align-items-center gap-2 mt-3 mb-3">
+                <p-checkbox [(ngModel)]="newAffectation.principale" 
+                    [binary]="true"
+                    inputId="principale">
+                </p-checkbox>
+                <label for="principale" class="mb-0">Affectation principale</label>
+            </div>
+
+            <button pButton 
+                [label]="editingAffectationIndex !== null ? 'Mettre à jour l\'affectation' : 'Ajouter l\'affectation'"
+                [icon]="editingAffectationIndex !== null ? 'pi pi-check' : 'pi pi-plus'"
+                class="p-button-outlined"
+                (click)="addAffectation()"></button>
+        </p-tabPanel>
+
+        <!-- ONGLET 4: Rôles et permissions -->
+        <p-tabPanel header="Rôles">
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>Rôle principal <span class="required">*</span></label>
+                    <p-dropdown 
+                        [options]="roles" 
+                        [(ngModel)]="staff.role"
+                        optionLabel="label"
+                        optionValue="value"
+                        (ngModelChange)="onRoleChange()"
+                        placeholder="Choisir un rôle"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field" *ngIf="isChefDePole()">
+                    <label>Pôle <span class="required">*</span></label>
+                    <p-dropdown 
+                        [options]="poles" 
+                        [(ngModel)]="staff.poleId"
+                        optionLabel="nom"
+                        optionValue="id"
+                        placeholder="Sélectionner le pôle"
+                        appendTo="body">
+                    </p-dropdown>
+                    <small class="field-hint">Sélectionnez le pôle dont cet utilisateur sera le chef</small>
+                </div>
+
+                <div class="form-field">
+                    <label>Rôles secondaires</label>
+                    <p-multiSelect 
+                        [options]="roles" 
+                        [(ngModel)]="staff.rolesSecondaires"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="Sélectionner"
+                        appendTo="body">
+                    </p-multiSelect>
+                </div>
+            </div>
+
+            <div class="form-field mt-15" *ngIf="staff.role">
+                <label>Aperçu des permissions</label>
+                <div class="permission-description">
+                    <p>
+                        {{getRolePermissionsDescription()}}
+                    </p>
+                </div>
+            </div>
+        </p-tabPanel>
+
+        <!-- ONGLET 5: Informations professionnelles -->
+        <p-tabPanel header="Pro">
+            <div class="form-grid two-columns">
+                <div class="form-field">
+                    <label>Métier <span class="required">*</span></label>
+                    <p-dropdown
+                        [options]="metiers"
+                        [(ngModel)]="staff.specialite"
+                        optionLabel="label"
+                        optionValue="nom"
+                        placeholder="Choisir un métier"
+                        [filter]="true"
+                        filterBy="label"
+                        [showClear]="true"
+                        appendTo="body"
+                        [ngClass]="{'ng-invalid ng-dirty': !staff.specialite && staff._touched}">
+                        <ng-template pTemplate="item" let-m>
+                            <div class="metier-option">
+                                <span class="metier-nom">{{ m.nom }}</span>
+                                <div class="metier-badges">
+                                    <span class="badge-code" *ngIf="m.code">{{ m.code }}</span>
+                                    <span class="badge-cat" [attr.data-cat]="m.categorie">{{ m.categorie }}</span>
+                                    <span class="badge-garde" *ngIf="m.besoinGarde" title="Besoin garde">G</span>
+                                    <span class="badge-astr" *ngIf="m.besoinAstreinte" title="Besoin astreinte">A</span>
+                                </div>
+                            </div>
+                        </ng-template>
+                        <ng-template pTemplate="selectedItem" let-m>
+                            <div class="metier-selected" *ngIf="m">
+                                <span>{{ m.nom }}</span>
+                                <span class="badge-code" *ngIf="m.code">{{ m.code }}</span>
+                            </div>
+                        </ng-template>
+                    </p-dropdown>
+                </div>
+
+                <div class="form-field">
+                    <label>Date d'embauche <span class="required">*</span></label>
+                    <p-calendar [(ngModel)]="staff.dateEmbauche" 
+                        dateFormat="dd/mm/yy"
+                        [showIcon]="true"
+                        appendTo="body">
+                    </p-calendar>
+                </div>
+
+                <div class="form-field">
+                    <label>Diplôme</label>
+                    <input pInputText [(ngModel)]="staff.diplome" placeholder="Doctorat en médecine">
+                </div>
+
+                <div class="form-field">
+                    <label>Université</label>
+                    <input pInputText [(ngModel)]="staff.universite" placeholder="Université Paris Descartes">
+                </div>
+
+                <div class="form-field">
+                    <label>Numéro RPPS</label>
+                    <input pInputText [(ngModel)]="staff.rpps" placeholder="Pour les médecins">
+                </div>
+
+                <div class="form-field">
+                    <label>Numéro de sécurité sociale</label>
+                    <input pInputText [(ngModel)]="staff.secu" placeholder="Optionnel">
+                </div>
+
+                <div class="form-field grid-full-width">
+                    <label>Compétences</label>
+                    <p-multiSelect
+                        [options]="competences"
+                        [(ngModel)]="staff.competences"
+                        optionLabel="nom"
+                        optionValue="id"
+                        placeholder="Sélectionner"
+                        appendTo="body">
+                    </p-multiSelect>
+                </div>
+            </div>
+        </p-tabPanel>
+
+        <!-- ONGLET 6: Notifications -->
+        <p-tabPanel header="Notifs">
+            <div class="form-grid single-column">
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.notifEmail" 
+                        [binary]="true"
+                        inputId="notifEmail">
+                    </p-checkbox>
+                    <label for="notifEmail" class="mb-0">Notifications par email</label>
+                </div>
+
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.notifSMS" 
+                        [binary]="true"
+                        inputId="notifSMS">
+                    </p-checkbox>
+                    <label for="notifSMS" class="mb-0">Notifications par SMS</label>
+                </div>
+
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.notifPush" 
+                        [binary]="true"
+                        inputId="notifPush">
+                    </p-checkbox>
+                    <label for="notifPush" class="mb-0">Notifications push</label>
+                </div>
+
+                <div class="form-field mt-1">
+                    <label>Rappel avant début planning</label>
+                    <p-dropdown 
+                        [options]="rappelOptions" 
+                        [(ngModel)]="staff.rappelPlanning"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="Choisir"
+                        appendTo="body">
+                    </p-dropdown>
+                </div>
+
+                <div class="flex align-items-center gap-2 mb-3 mt-3">
+                    <p-checkbox [(ngModel)]="staff.notifModifications" 
+                        [binary]="true"
+                        inputId="notifModif">
+                    </p-checkbox>
+                    <label for="notifModif" class="mb-0">Être notifié si mon planning est modifié</label>
+                </div>
+
+                <div class="flex align-items-center gap-2 mb-3">
+                    <p-checkbox [(ngModel)]="staff.recevoirRapports" 
+                        [binary]="true"
+                        inputId="rapports">
+                    </p-checkbox>
+                    <label for="rapports" class="mb-0">Recevoir les rapports mensuels d'activité</label>
+                </div>
+            </div>
+        </p-tabPanel>
+    </p-tabView>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+            class="p-button-text"
+            (click)="staffDialog=false"></button>
+        <button pButton label="Enregistrer" 
+            class="p-button-primary"
+            icon="pi pi-save"
+            (click)="saveStaff()"></button>
+    </ng-template>
+</p-dialog>
+
+<!-- MODALE IMPORT CSV -->
+<p-dialog [(visible)]="importDialog"
+    header="Importer des utilisateurs"
+    [modal]="true"
+    [style]="{width:'600px'}">
+    
+    <div class="upload-zone" 
+        (click)="fileUpload.click()"
+        [ngClass]="{'dragover': isDragging}"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)">
+        <div class="upload-icon">📤</div>
+        <div class="upload-text">
+            <strong>Glissez-déposez votre fichier CSV ici</strong> ou cliquez pour parcourir
+        </div>
+        <div class="upload-hint">Formats acceptés: .csv uniquement (max 5 Mo)</div>
+        <input #fileUpload type="file" accept=".csv" class="d-none" (change)="onFileSelect($event)">
+    </div>
+
+    <div *ngIf="selectedFile" class="selected-file-info">
+        <strong>Fichier sélectionné:</strong> {{selectedFile.name}}
+        <button pButton icon="pi pi-times" 
+            class="p-button-text p-button-sm"
+            (click)="removeFile()"></button>
+    </div>
+
+    <div class="mt-15">
+        <div class="flex align-items-center gap-2 mb-3">
+            <p-checkbox [(ngModel)]="csvOptions.hasHeader" 
+                [binary]="true"
+                inputId="hasHeader">
+            </p-checkbox>
+            <label for="hasHeader" class="mb-0">La première ligne contient les en-têtes</label>
+        </div>
+
+        <div class="form-field">
+            <label>Séparateur</label>
+            <p-dropdown 
+                [options]="csvSeparators" 
+                [(ngModel)]="csvOptions.separator"
+                optionLabel="label"
+                optionValue="value"
+                appendTo="body">
+            </p-dropdown>
+        </div>
+    </div>
+
+    <div class="csv-download-link">
+        <a href="#">Télécharger un modèle CSV exemple</a>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+            class="p-button-text"
+            (click)="importDialog=false"></button>
+        <button pButton label="Importer" 
+            class="p-button-primary"
+            icon="pi pi-upload"
+            [disabled]="!selectedFile"
+            (click)="importCSV()"></button>
+    </ng-template>
+</p-dialog>
+
+<!-- MODALE CONFIRMATION SUPPRESSION -->
+<p-dialog [(visible)]="deleteDialog"
+    header="Confirmation"
+    [modal]="true"
+    [style]="{width:'400px'}">
+    
+    <div class="delete-confirmation">
+        <span class="warning-icon">⚠️</span>
+        <div class="confirmation-message">
+            <p class="title">
+                Êtes-vous sûr de vouloir supprimer l'utilisateur {{staff?.nom}} {{staff?.prenom}} ?
+            </p>
+            <p class="subtitle">
+                Cette action est irréversible.
+            </p>
+        </div>
+    </div>
+
+    <div class="form-field mt-15">
+        <label>Raison de la suppression (optionnel)</label>
+        <textarea pInputTextarea [(ngModel)]="deleteReason" rows="3" placeholder="Entrez une raison..."></textarea>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+            class="p-button-text"
+            (click)="deleteDialog=false"></button>
+        <button pButton label="Supprimer" 
+            class="p-button-danger"
+            icon="pi pi-trash"
+            (click)="confirmDelete()"></button>
+    </ng-template>
+</p-dialog>
+
+<!-- MODALE CHANGEMENT RÔLE EN LOT -->
+<p-dialog [(visible)]="bulkRoleDialog"
+    header="Changer le rôle"
+    [modal]="true"
+    [style]="{width:'400px'}">
+    
+    <p>Changer le rôle de {{selectedStaff.length}} utilisateur(s) sélectionné(s)</p>
+
+    <div class="form-field">
+        <label>Nouveau rôle <span class="required">*</span></label>
+        <p-dropdown 
+            [options]="roles" 
+            [(ngModel)]="bulkNewRole"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Choisir un rôle"
+            appendTo="body">
+        </p-dropdown>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton label="Annuler" 
+            class="p-button-text"
+            (click)="bulkRoleDialog=false"></button>
+        <button pButton label="Appliquer" 
+            class="p-button-primary"
+            [disabled]="!bulkNewRole"
+            (click)="applyBulkRole()"></button>
+    </ng-template>
+</p-dialog>

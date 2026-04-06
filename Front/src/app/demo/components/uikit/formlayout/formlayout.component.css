@@ -1,0 +1,145 @@
+/* formlayout.component.css */
+.p-calendar {
+    width: 100%;
+    max-width: 971px;
+    margin: 0 auto;
+  }
+  
+  .p-datepicker {
+    width: 100%;
+  }
+  
+  .p-datepicker-inline {
+    width: 100%;
+  }
+  
+  .p-datepicker-calendar-container {
+    width: 100%;
+  }
+  
+  .p-datepicker-calendar {
+    width: 100%;
+  }
+  
+  .p-datepicker table {
+    width: 100%;
+  }
+  .header-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.left-toolbar {
+    display: flex;
+    align-items: center;
+}
+
+.calendar-speedDial {
+    margin-left: 10px;
+}
+
+.calendar-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.p-calendar {
+    width: 100%;
+}
+
+.p-datepicker {
+    width: 100%;
+}
+
+.p-datepicker-inline {
+    width: 100%;
+}
+
+.p-datepicker-calendar-container {
+    width: 100%;
+}
+
+.p-datepicker-calendar {
+    width: 100%;
+}
+
+.p-datepicker table {
+    width: 100%;
+}
+/* formlayout.component.css */
+.p-calendar {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.p-datepicker {
+  width: 100%;
+}
+
+.p-datepicker-inline {
+  width: 100%;
+}
+
+.p-datepicker-calendar-container {
+  width: 100%;
+}
+
+.p-datepicker-calendar {
+  width: 100%;
+}
+
+.p-datepicker table {
+  width: 100%;
+}
+
+
+
+.calendar-container .fc-toolbar.fc-header-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-container .fc-toolbar .fc-left {
+  flex-grow: 1;
+}
+.p-calendar {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.p-datepicker {
+  width: 100%;
+}
+
+.p-datepicker-inline {
+  width: 100%;
+}
+
+.p-datepicker-calendar-container {
+  width: 100%;
+}
+
+.p-datepicker-calendar {
+  width: 100%;
+}
+
+.p-datepicker table {
+  width: 100%;
+}
+
+.calendar-speedDial {
+  position: absolute;
+  bottom: 10px;
+  left: 350px;
+  top: calc(60% + 90px);
+  
+}
+
+  
+  

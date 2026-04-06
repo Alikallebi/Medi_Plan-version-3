@@ -1,0 +1,431 @@
+<div class="medical-dashboard fullscreen-dashboard">
+    <div class="service-loading-overlay" *ngIf="isLoading">
+        <div class="loading-spinner"></div>
+        <p>Chargement des données du service {{ serviceLabel }}...</p>
+    </div>
+
+    <header class="dashboard-topbar dashboard-header">
+        <div class="topbar-main">
+            <div class="topbar-brand" aria-label="Contexte planning">
+                <span class="brand-label">Planning</span>
+                <strong>{{ serviceLabel }}</strong>
+                <span class="period-title">{{ getPeriodLabel() }}</span>
+            </div>
+
+            <div class="topbar-nav" aria-label="Navigation planning">
+                <button type="button" class="icon-btn" aria-label="Période précédente" (click)="previousPeriod()">
+                    <i class="pi pi-angle-left"></i>
+                </button>
+                <button type="button" class="today-btn" (click)="goToday()">Aujourd'hui</button>
+                <button type="button" class="icon-btn" aria-label="Période suivante" (click)="nextPeriod()">
+                    <i class="pi pi-angle-right"></i>
+                </button>
+
+                <div class="view-switch" aria-label="Choix de vue">
+                    <button type="button" [class.active]="activeViewMode === 'month'" (click)="setViewMode('month')">Mois</button>
+                    <button type="button" [class.active]="activeViewMode === 'week'" (click)="setViewMode('week')">Semaine</button>
+                    <button type="button" [class.active]="activeViewMode === 'day'" (click)="setViewMode('day')">Jour</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="topbar-actions">
+            <label class="search-box" aria-label="Rechercher un membre ou une affectation">
+                <i class="pi pi-search"></i>
+                <input
+                    type="text"
+                    placeholder="Rechercher un membre"
+                    [(ngModel)]="searchQuery"
+                    aria-label="Recherche rapide" />
+            </label>
+        </div>
+
+        <section class="planning-top-filters planning-top-filters--topbar" *ngIf="hasPlanning" aria-label="Filtres spécialités">
+            <h4>Postes</h4>
+            <div class="topbar-filters">
+                <button
+                    type="button"
+                    class="filter-chip topbar-filter-chip"
+                    *ngFor="let f of availableFilters"
+                    [class.active]="dashboardFilter === f.key"
+                    (click)="setDashboardFilter(f.key)">
+                    {{ f.label }}
+                    <span class="chip-count" *ngIf="f.key !== 'all'">{{ f.count }}</span>
+                </button>
+            </div>
+        </section>
+    </header>
+
+    <section class="dashboard-content">
+        <main class="calendar-panel">
+            <div class="state-banner warning" *ngIf="hasPlanning && isWorkflowPendingValidation">
+                <i class="pi pi-clock"></i>
+                <span>{{ pendingValidationMessage }}</span>
+            </div>
+
+            <div class="state-banner danger" *ngIf="hasPlanning && planningWorkflowStatus === 'REJETE'">
+                <i class="pi pi-times-circle"></i>
+                <span>Ce planning a été rejeté. Corrigez puis resoumettez.</span>
+            </div>
+
+            <section class="empty-state" *ngIf="!hasPlanning">
+                <i class="pi pi-calendar-times"></i>
+                <h3>Aucun planning disponible</h3>
+                <p>{{ noPlanningMessage || 'Aucune donnée de planning pour cette période.' }}</p>
+                <button type="button" class="today-btn" *ngIf="canShowCreatePlanningButton()" (click)="createNewPlanning()">
+                    Créer un planning
+                </button>
+            </section>
+
+            <section class="day-view" *ngIf="hasPlanning && activeViewMode === 'day'">
+                <header class="day-view__header">
+                    <h3 class="day-view__title">Répartition des affectations - {{ getPeriodLabel() }}</h3>
+                    <span class="day-view__count-badge">{{ dayTimelineRows.length }} personne(s)</span>
+                </header>
+
+                <div class="day-view__list">
+                    <article class="day-view-card" *ngFor="let row of dayTimelineRows" [class.day-view-card--conflict]="row.hasConflict">
+                        <div class="day-view-card__left">
+                            <div class="day-view-avatar" [class.day-view-avatar--super-admin]="row.role.toLowerCase().includes('super admin')">
+                                <ng-container *ngIf="row.avatar; else dayAvatarFallback">
+                                    <img
+                                        class="day-view-avatar__img"
+                                        [src]="row.avatar"
+                                        (error)="handleAvatarError($event, row)"
+                                        [alt]="'Photo de ' + row.name" />
+                                </ng-container>
+                                <ng-template #dayAvatarFallback>
+                                    <span class="day-view-avatar__fallback" aria-label="Icône utilisateur">
+                                        <i class="pi pi-user"></i>
+                                    </span>
+                                </ng-template>
+                                <i class="pi pi-crown day-view-avatar__crown" *ngIf="row.role.toLowerCase().includes('super admin')" aria-hidden="true"></i>
+                            </div>
+
+                            <div class="day-view-staff">
+                                <div class="day-view-staff__name">{{ row.name }}</div>
+                                <div class="day-view-staff__meta">{{ row.role }} - {{ row.specialty || 'Spécialité non renseignée' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="day-view-card__slots">
+                            <div class="day-view-slot">
+                                <span class="day-view-slot__label">Matin</span>
+                                <small class="day-view-slot__hours">07:00 - 14:00</small>
+                                <div class="day-view-slot__dropzone" (dragover)="allowShiftDrop($event)" (drop)="dropShiftOn(row.id, 'morning', $event)">
+                                    <ng-container *ngIf="row.morning; else emptyMorningSlot">
+                                        <div
+                                            class="day-view-shift-card"
+                                            [ngClass]="getStatusClass(row.morning.status)"
+                                            draggable="true"
+                                            (dragstart)="startShiftDrag(row.id, 'morning', $event)">
+                                            <strong>{{ getStatusLabel(row.morning.status) }}</strong>
+                                            <small *ngIf="row.morning.timeRange">{{ row.morning.timeRange }}</small>
+                                            <small *ngIf="row.morning.note">{{ row.morning.note }}</small>
+                                        </div>
+                                    </ng-container>
+                                    <ng-template #emptyMorningSlot>
+                                        <div class="day-view-slot__empty">—</div>
+                                    </ng-template>
+                                </div>
+                            </div>
+
+                            <div class="day-view-slot">
+                                <span class="day-view-slot__label">Après-midi</span>
+                                <small class="day-view-slot__hours">14:00 - 21:00</small>
+                                <div class="day-view-slot__dropzone" (dragover)="allowShiftDrop($event)" (drop)="dropShiftOn(row.id, 'afternoon', $event)">
+                                    <ng-container *ngIf="row.afternoon; else emptyAfternoonSlot">
+                                        <div
+                                            class="day-view-shift-card"
+                                            [ngClass]="getStatusClass(row.afternoon.status)"
+                                            draggable="true"
+                                            (dragstart)="startShiftDrag(row.id, 'afternoon', $event)">
+                                            <strong>{{ getStatusLabel(row.afternoon.status) }}</strong>
+                                            <small *ngIf="row.afternoon.timeRange">{{ row.afternoon.timeRange }}</small>
+                                            <small *ngIf="row.afternoon.note">{{ row.afternoon.note }}</small>
+                                        </div>
+                                    </ng-container>
+                                    <ng-template #emptyAfternoonSlot>
+                                        <div class="day-view-slot__empty">—</div>
+                                    </ng-template>
+                                </div>
+                            </div>
+
+                            <div class="day-view-slot">
+                                <span class="day-view-slot__label">Nuit</span>
+                                <small class="day-view-slot__hours">21:00 - 07:00</small>
+                                <div class="day-view-slot__dropzone" (dragover)="allowShiftDrop($event)" (drop)="dropShiftOn(row.id, 'night', $event)">
+                                    <ng-container *ngIf="row.night; else emptyNightSlot">
+                                        <div
+                                            class="day-view-shift-card"
+                                            [ngClass]="getStatusClass(row.night.status)"
+                                            draggable="true"
+                                            (dragstart)="startShiftDrag(row.id, 'night', $event)">
+                                            <strong>{{ getStatusLabel(row.night.status) }}</strong>
+                                            <small *ngIf="row.night.timeRange">{{ row.night.timeRange }}</small>
+                                            <small *ngIf="row.night.note">{{ row.night.note }}</small>
+                                        </div>
+                                    </ng-container>
+                                    <ng-template #emptyNightSlot>
+                                        <div class="day-view-slot__empty">—</div>
+                                    </ng-template>
+                                </div>
+                            </div>
+
+                            <div class="day-view-slot">
+                                <span class="day-view-slot__label">Spécial</span>
+                                <small class="day-view-slot__hours">Garde / Astreinte</small>
+                                <div class="day-view-slot__dropzone" (dragover)="allowShiftDrop($event)" (drop)="dropShiftOn(row.id, 'special', $event)">
+                                    <ng-container *ngIf="row.special; else emptySpecialSlot">
+                                        <div
+                                            class="day-view-shift-card"
+                                            [ngClass]="getStatusClass(row.special.status)"
+                                            draggable="true"
+                                            (dragstart)="startShiftDrag(row.id, 'special', $event)">
+                                            <strong>{{ getStatusLabel(row.special.status) }}</strong>
+                                            <small *ngIf="row.special.timeRange">{{ row.special.timeRange }}</small>
+                                            <small *ngIf="row.special.note">{{ row.special.note }}</small>
+                                        </div>
+                                    </ng-container>
+                                    <ng-template #emptySpecialSlot>
+                                        <div class="day-view-slot__empty">—</div>
+                                    </ng-template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <i class="pi pi-exclamation-triangle day-view-card__conflict-icon" *ngIf="row.hasConflict" aria-hidden="true"></i>
+                    </article>
+
+                    <article class="day-view-card day-view-card--empty" *ngIf="dayTimelineRows.length === 0">
+                        <div class="day-view-staff">
+                            <div class="day-view-staff__name">Aucun résultat</div>
+                            <div class="day-view-staff__meta">Aucun personnel ne correspond aux filtres actuels.</div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="calendar-month" *ngIf="hasPlanning && activeViewMode === 'month'">
+                <div class="planning-table-scroll">
+                <div class="month-grid">
+                    <article
+                        class="day-cell"
+                        *ngFor="let day of monthCells"
+                        [class.outside]="!day.inCurrentMonth"
+                        [class.today]="day.isToday"
+                        [class.has-conflict]="day.hasConflict"
+                        (click)="openDayDetail(day)">
+
+                        <div class="day-head">
+                            <div>
+                                <strong>{{ day.dayNumber }}</strong>
+                                <small>{{ day.dayName }}</small>
+                            </div>
+                            <i class="pi pi-exclamation-circle conflict-icon" *ngIf="day.hasConflict" aria-hidden="true"></i>
+                        </div>
+
+                        <div class="shifts-by-type" *ngIf="getShiftsForDay(day) as shifts">
+                            <div class="shift-section morning" *ngIf="shifts.morning.length > 0">
+                                <div class="shift-section-title morning"><i class="pi pi-sun"></i><span>Matin</span></div>
+                                <ul class="assignment-list">
+                                    <li *ngFor="let item of shifts.morning" [ngClass]="getStatusClass(item.status)" [title]="item.tooltip">
+                                        <span class="shift-person">{{ item.personnel }}</span>
+                                        <span class="shift-time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="shift-section afternoon" *ngIf="shifts.afternoon.length > 0">
+                                <div class="shift-section-title afternoon"><i class="pi pi-sun"></i><span>Après-midi</span></div>
+                                <ul class="assignment-list">
+                                    <li *ngFor="let item of shifts.afternoon" [ngClass]="getStatusClass(item.status)" [title]="item.tooltip">
+                                        <span class="shift-person">{{ item.personnel }}</span>
+                                        <span class="shift-time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="shift-section night" *ngIf="shifts.night.length > 0">
+                                <div class="shift-section-title night"><i class="pi pi-moon"></i><span>Nuit</span></div>
+                                <ul class="assignment-list">
+                                    <li *ngFor="let item of shifts.night" [ngClass]="getStatusClass(item.status)" [title]="item.tooltip">
+                                        <span class="shift-person">{{ item.personnel }}</span>
+                                        <span class="shift-time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="shift-section special" *ngIf="shifts.special.length > 0">
+                                <div class="shift-section-title special"><i class="pi pi-star"></i><span>Spécial</span></div>
+                                <ul class="assignment-list">
+                                    <li *ngFor="let item of shifts.special" [ngClass]="getStatusClass(item.status)" [title]="item.tooltip">
+                                        <span class="shift-person">{{ getStatusLabel(item.status) }} - {{ item.personnel }}</span>
+                                        <span class="shift-time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="empty-cell-hint" *ngIf="shifts.morning.length === 0 && shifts.afternoon.length === 0 && shifts.night.length === 0 && shifts.special.length === 0">
+                                Aucune affectation
+                            </div>
+                        </div>
+                    </article>
+                </div>
+                </div>
+            </section>
+
+            <section class="week-view" *ngIf="hasPlanning && activeViewMode === 'week'">
+                <!-- Mobile navigation helpers for one-column view -->
+                <div class="week-view__mobile-nav" aria-label="Navigation semaine">
+                    <button type="button" class="week-view__nav-btn" (click)="previousPeriod()" aria-label="Semaine précédente">
+                        <i class="pi pi-angle-left" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="week-view__today-btn" (click)="goToday()">Aujourd'hui</button>
+                    <button type="button" class="week-view__nav-btn" (click)="nextPeriod()" aria-label="Semaine suivante">
+                        <i class="pi pi-angle-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <div class="week-view__scroll">
+                    <div class="week-view__grid">
+                        <article
+                            class="week-view__day"
+                            *ngFor="let day of weekCells"
+                            [class.week-view__day--today]="day.isToday"
+                            [class.week-view__day--weekend]="day.dayName.toLowerCase() === 'samedi' || day.dayName.toLowerCase() === 'dimanche'"
+                            (click)="openDayDetail(day)">
+
+                            <!-- Day column header -->
+                            <header class="week-view__day-header">
+                                <div>
+                                    <div class="week-view__day-number">{{ day.dayNumber }}</div>
+                                    <div class="week-view__day-name">{{ day.dayName }}</div>
+                                </div>
+                                <span class="week-view__today-badge" *ngIf="day.isToday">Aujourd'hui</span>
+                            </header>
+
+                            <!-- Shift groups -->
+                            <div class="week-view__groups" *ngIf="getShiftsForDay(day) as shifts">
+                                <!-- Morning group -->
+                                <section class="week-view-shift week-view-shift--morning" *ngIf="shifts.morning.length > 0">
+                                    <header class="week-view-shift__header">
+                                        <span class="week-view-shift__title"><i class="pi pi-sun" aria-hidden="true"></i> Matin</span>
+                                        <span class="week-view-shift__count">{{ shifts.morning.length }}</span>
+                                    </header>
+                                    <ul class="week-view-shift__list">
+                                        <li class="week-view-staff" *ngFor="let item of shifts.morning" [title]="item.tooltip">
+                                            <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
+                                            <span class="week-view-staff__meta">
+                                                <span class="week-view-staff__name">{{ getStatusLabel(item.status) }} - {{ item.personnel }}</span>
+                                                <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                            </span>
+                                            <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
+                                        </li>
+                                    </ul>
+                                </section>
+
+                                <!-- Afternoon group -->
+                                <section class="week-view-shift week-view-shift--afternoon" *ngIf="shifts.afternoon.length > 0">
+                                    <header class="week-view-shift__header">
+                                        <span class="week-view-shift__title"><i class="pi pi-cloud" aria-hidden="true"></i> Après-midi</span>
+                                        <span class="week-view-shift__count">{{ shifts.afternoon.length }}</span>
+                                    </header>
+                                    <ul class="week-view-shift__list">
+                                        <li class="week-view-staff" *ngFor="let item of shifts.afternoon" [title]="item.tooltip">
+                                            <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
+                                            <span class="week-view-staff__meta">
+                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                            </span>
+                                            <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
+                                        </li>
+                                    </ul>
+                                </section>
+
+                                <!-- Night group -->
+                                <section class="week-view-shift week-view-shift--night" *ngIf="shifts.night.length > 0">
+                                    <header class="week-view-shift__header">
+                                        <span class="week-view-shift__title"><i class="pi pi-moon" aria-hidden="true"></i> Nuit</span>
+                                        <span class="week-view-shift__count">{{ shifts.night.length }}</span>
+                                    </header>
+                                    <ul class="week-view-shift__list">
+                                        <li class="week-view-staff" *ngFor="let item of shifts.night" [title]="item.tooltip">
+                                            <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
+                                            <span class="week-view-staff__meta">
+                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                            </span>
+                                            <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
+                                        </li>
+                                    </ul>
+                                </section>
+
+                                <!-- Special group -->
+                                <section class="week-view-shift week-view-shift--special" *ngIf="shifts.special.length > 0">
+                                    <header class="week-view-shift__header">
+                                        <span class="week-view-shift__title"><i class="pi pi-star" aria-hidden="true"></i> Spécial</span>
+                                        <span class="week-view-shift__count">{{ shifts.special.length }}</span>
+                                    </header>
+                                    <ul class="week-view-shift__list">
+                                        <li class="week-view-staff" *ngFor="let item of shifts.special" [title]="item.tooltip">
+                                            <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
+                                            <span class="week-view-staff__meta">
+                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                            </span>
+                                            <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
+                                        </li>
+                                    </ul>
+                                </section>
+
+                                <!-- Empty day state -->
+                                <div class="week-view__empty" *ngIf="shifts.morning.length === 0 && shifts.afternoon.length === 0 && shifts.night.length === 0 && shifts.special.length === 0">
+                                    <i class="pi pi-calendar-times" aria-hidden="true"></i>
+                                    <span>Aucune affectation</span>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="workflow-strip" *ngIf="workflowSteps.length > 0">
+                <button type="button" class="workflow-step" *ngFor="let step of workflowSteps" (click)="viewWorkflowDetails(step.id)">
+                    <span class="step-state" [ngClass]="'badge-' + step.status">{{ step.statusLabel }}</span>
+                    <span class="step-title">{{ step.title }}</span>
+                </button>
+            </section>
+
+            <footer class="dashboard-summary" *ngIf="hasPlanning">
+                <span>{{ dayTimelineRows.length }} professionnels affichés</span>
+                <span>{{ dayCoverageSummary.filled }} créneau(x) pourvu(s)</span>
+                <span>{{ dayCoverageSummary.conflicts }} conflit(s)</span>
+            </footer>
+        </main>
+    </section>
+
+    <div class="day-modal-backdrop" *ngIf="selectedDayDetail" (click)="closeDayDetail()">
+        <section class="day-modal" (click)="$event.stopPropagation()">
+            <header>
+                <h3>{{ selectedDayDetail.dayName }} {{ selectedDayDetail.dayNumber }} - {{ getPeriodLabel() }}</h3>
+                <button type="button" class="icon-btn" aria-label="Fermer" (click)="closeDayDetail()">
+                    <i class="pi pi-times"></i>
+                </button>
+            </header>
+
+            <ul>
+                <li *ngFor="let item of selectedDayDetail.items">
+                    <span class="detail-badge" [ngClass]="getStatusClass(item.status)">{{ getStatusLabel(item.status) }}</span>
+                    <strong>{{ item.personnel }}</strong>
+                    <span>{{ item.label }}</span>
+                </li>
+                <li *ngIf="selectedDayDetail.items.length === 0">Aucune affectation planifiée.</li>
+            </ul>
+
+            <footer>
+                <button type="button" class="today-btn" (click)="createNewPlanning()" *ngIf="canShowCreatePlanningButton()">Modifier les affectations</button>
+            </footer>
+        </section>
+    </div>
+</div>

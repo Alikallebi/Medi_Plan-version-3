@@ -1,0 +1,30 @@
+<div class="validator-wrapper">
+    <p class="empty" *ngIf="items.length === 0">Aucune donnée de performance disponible.</p>
+
+    <table class="validator-table" *ngIf="items.length > 0">
+        <thead>
+            <tr>
+                <th>Validateur</th>
+                <th>Rôle</th>
+                <th>Traités</th>
+                <th>En attente</th>
+                <th>Temps</th>
+                <th>Statut</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let item of items">
+                <td>{{ item.nom }}</td>
+                <td>{{ item.role }}</td>
+                <td>{{ item.traites }}</td>
+                <td>{{ item.enAttente }}</td>
+                <td>{{ formatTemps(item.tempsMoyen) }}</td>
+                <td>
+                    <span class="perf" [ngClass]="getClass(item)">
+                        {{ item.performance === 'good' ? '🟢' : (item.performance === 'average' ? '🟡' : '🔴') }}
+                    </span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

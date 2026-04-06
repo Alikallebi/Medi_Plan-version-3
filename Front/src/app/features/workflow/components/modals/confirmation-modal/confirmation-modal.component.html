@@ -1,0 +1,19 @@
+<div class="modal-backdrop" (click)="onCancel()">
+    <div class="modal-card" [ngClass]="type" (click)="$event.stopPropagation()">
+        <header>
+            <h3>{{ titre }}</h3>
+            <button type="button" (click)="onCancel()">✖</button>
+        </header>
+
+        <p>{{ message }}</p>
+        <p>Cette action est irréversible.</p>
+
+        <footer>
+            <button type="button" class="btn cancel" (click)="onCancel()" [disabled]="isSubmitting">✖ Annuler</button>
+            <button type="button" class="btn confirm" (click)="onConfirm()" [disabled]="isSubmitting">
+                <span *ngIf="!isSubmitting">✓ Confirmer</span>
+                <span *ngIf="isSubmitting">⏳ En cours...</span>
+            </button>
+        </footer>
+    </div>
+</div>

@@ -1,0 +1,411 @@
+<p-toast></p-toast>
+<p-confirmDialog></p-confirmDialog>
+
+<div class="services-page">
+  <!-- En-tête avec statistiques et actions -->
+  <div class="page-header card">
+    <div class="header-left">
+      <h2>
+  <span class="logo">🏥</span>
+  <span class="title-text">Gestion des services et équipes</span>
+</h2>
+      <p class="subtitle">Structure organisationnelle de l'établissement</p>
+      <div class="quick-stats">
+        <span class="stat-item">{{ stats.nombrePoles || 0 }} pôles</span>
+        <span class="stat-item">{{ stats.nombreServices || 0 }} services</span>
+        <span class="stat-item">{{ stats.nombreEquipes || 0 }} équipes</span>
+        <span class="stat-item">{{ stats.nombreUtilisateurs || 0 }} utilisateurs</span>
+        <span class="stat-item inactive">{{ stats.nombreInactifs || 0 }} inactifs</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button pButton type="button" icon="pi pi-plus" label="Nouveau pôle" class="p-button-sm p-button-help" *ngIf="rbac.canEdit('referentiel.services')" (click)="openPoleDialog()" title="Créer un nouveau pôle"></button>
+      <button pButton type="button" icon="pi pi-plus" label="Nouveau service" class="p-button-sm p-button-success" *ngIf="rbac.canEdit('referentiel.services')" (click)="openServiceDialog()"></button>
+      <button pButton type="button" icon="pi pi-eye" label="Vue" class="p-button-sm p-button-secondary" (click)="toggleView()"></button>
+      <button pButton type="button" icon="pi pi-upload" label="Importer" class="p-button-sm p-button-secondary" (click)="importStructure()"></button>
+      <button pButton type="button" icon="pi pi-download" label="Exporter" class="p-button-sm p-button-secondary" (click)="exportStructure()"></button>
+    </div>
+  </div>
+
+  <!-- Vue arborescence (par défaut) -->
+  <ng-container *ngIf="!showTableView; else tableView">
+    <div class="content-grid">
+      <!-- Colonne gauche : arbre + filtres -->
+      <div class="left-column card">
+        <div class="filters-row">
+          <span class="p-input-icon-left search-input">
+            <i class="pi pi-search"></i>
+            <input pInputText type="text" [ngModel]="searchTerm" (ngModelChange)="onSearchInput($event)" placeholder="Rechercher un pôle, service ou équipe..." />
+          </span>
+
+          <div class="quick-filters">
+            <p-checkbox [(ngModel)]="showInactive" [binary]="true" inputId="showInactive" (onChange)="applyFilters()"></p-checkbox>
+            <label for="showInactive">Inactifs</label>
+
+            <p-checkbox [(ngModel)]="showEffectifs" [binary]="true" inputId="showEffectifs"></p-checkbox>
+            <label for="showEffectifs">Effectifs</label>
+
+            <p-checkbox [(ngModel)]="compactView" [binary]="true" inputId="compactView" (onChange)="applyFilters()"></p-checkbox>
+            <label for="compactView">Compacte</label>
+          </div>
+        </div>
+
+        <div class="tree-container" *ngIf="treeRoot">
+          <!-- Racine fictive (établissement) -->
+          <div class="root-node">
+            <span class="node-icon">🏛️</span>
+            <span class="node-label">{{ treeRoot.nom }}</span>
+            <span class="count-badge" *ngIf="showEffectifs">{{ treeRoot.effectif || 0 }}</span>
+          </div>
+
+          <!-- Template récursif pour les nœuds -->
+          <ng-template #treeNode let-node let-level="level">
+            <div class="tree-node"
+                 [class.selected]="selectedNode?.id === node.id"
+                 [class.inactive]="node.statut === EntityStatus.INACTIF"
+                 [style.paddingLeft.px]="(level * 16) + 8">
+
+              <button type="button" class="expand-btn" *ngIf="(node.enfants || []).length > 0" (click)="toggleExpand(node)" [attr.title]="node.expanded ? 'Réduire' : 'Développer'">
+                <i class="pi" [ngClass]="node.expanded ? 'pi-chevron-down' : 'pi-chevron-right'"></i>
+              </button>
+              <span class="expand-placeholder" *ngIf="(node.enfants || []).length === 0"></span>
+
+              <!-- Petit indicateur de couleur (ex: pour le type) -->
+              <span class="node-dot" [style.backgroundColor]="node.couleur || getNodeColor(node)"></span>
+
+              <button type="button" class="node-button" (click)="selectNode(node)" [attr.title]="node.nom">
+                {{ node.nom }}
+                <small *ngIf="node.responsable">({{ node.responsable }})</small>
+              </button>
+
+              <span class="count-badge" *ngIf="showEffectifs">{{ getNodeCount(node) }}</span>
+            </div>
+
+            <!-- Enfants développés -->
+            <ng-container *ngIf="node.expanded">
+              <ng-container *ngFor="let child of node.enfants; trackBy: trackByNode">
+                <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: child, level: level + 1 }"></ng-container>
+              </ng-container>
+            </ng-container>
+          </ng-template>
+
+          <!-- Rendu des nœuds de premier niveau -->
+          <ng-container *ngFor="let node of filteredNodes; trackBy: trackByNode">
+            <ng-container *ngTemplateOutlet="treeNode; context: { $implicit: node, level: 1 }"></ng-container>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Colonne droite : détails de l'élément sélectionné -->
+      <div class="right-column card">
+        <ng-container *ngIf="selectedNode; else emptySelection">
+          <div class="entity-header">
+            <button pButton type="button" icon="pi pi-arrow-left" class="p-button-text p-button-sm" label="Retour" (click)="backToTree()" title="Retour à l'arborescence"></button>
+            <div class="entity-title">
+              <span class="color-chip" [style.backgroundColor]="selectedNode.couleur || getNodeColor(selectedNode)"></span>
+              <h3>{{ selectedNode.nom }}</h3>
+              <p-tag [value]="getStatusLabel(selectedNode.statut)" [severity]="getStatusSeverity(selectedNode.statut)"></p-tag>
+            </div>
+            <div class="entity-actions">
+              <!-- Boutons de suppression selon le type -->
+              <button pButton type="button" icon="pi pi-trash" class="p-button-danger p-button-sm p-button-outlined" 
+                      *ngIf="selectedPole && rbac.canEdit('referentiel.services')" 
+                      (click)="deletePole(selectedPole)" title="Supprimer le pôle"></button>
+              <button pButton type="button" icon="pi pi-trash" class="p-button-danger p-button-sm p-button-outlined" 
+                      *ngIf="selectedService && rbac.canEdit('referentiel.services')" 
+                      (click)="deleteService(selectedService)" title="Supprimer le service"></button>
+              <button pButton type="button" icon="pi pi-trash" class="p-button-danger p-button-sm p-button-outlined" 
+                      *ngIf="selectedEquipe && rbac.canEdit('referentiel.services')" 
+                      (click)="deleteEquipe(selectedEquipe)" title="Supprimer l'équipe"></button>
+            </div>
+          </div>
+
+          <!-- Onglets PrimeNG -->
+          <p-tabView>
+            <p-tabPanel header="Informations">
+              <!-- Pôle -->
+              <ng-container *ngIf="selectedPole as pole">
+                <div class="detail-grid">
+                  <div class="detail-item"><span class="detail-label">Code</span><span class="detail-value">{{ pole.code }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Téléphone</span><span class="detail-value">{{ pole.telephone || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">{{ pole.email || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Adresse</span><span class="detail-value">{{ pole.adresse || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Responsable</span><span class="detail-value">{{ getResponsableName(pole.chefPoleId) }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Assistant</span><span class="detail-value">{{ getResponsableName(pole.assistantId) }}</span></div>
+                </div>
+              </ng-container>
+
+              <!-- Service -->
+              <ng-container *ngIf="selectedService as service">
+                <div class="detail-grid">
+                  <div class="detail-item"><span class="detail-label">Code</span><span class="detail-value">{{ service.code }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Pôle</span><span class="detail-value">{{ getPoleNameById(service.poleId) }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Localisation</span><span class="detail-value">{{ service.localisation || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Téléphone</span><span class="detail-value">{{ service.telephone || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">{{ service.email || '-' }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Chef</span><span class="detail-value">{{ getResponsableName(service.chefServiceId) }}</span></div>
+                </div>
+              </ng-container>
+
+              <!-- Équipe -->
+              <ng-container *ngIf="selectedEquipe as equipe">
+                <div class="detail-grid">
+                  <div class="detail-item"><span class="detail-label">Code</span><span class="detail-value">{{ equipe.code }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Service</span><span class="detail-value">{{ getServiceNameById(equipe.serviceId) }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Type</span><span class="detail-value">{{ equipe.type }}</span></div>
+                  <div class="detail-item"><span class="detail-label">Chef d'équipe</span><span class="detail-value">{{ getResponsableName(equipe.chefEquipeId) }}</span></div>
+                </div>
+              </ng-container>
+            </p-tabPanel>
+
+            <p-tabPanel header="Effectifs">
+              <ng-container *ngIf="selectedNode.donnees as data">
+                <div class="kpi-row">
+                  <div class="kpi-card"><span class="kpi-label">Total</span><span class="kpi-value">{{ data.effectif?.total || 0 }}</span></div>
+                  <div class="kpi-card"><span class="kpi-label">Médecins</span><span class="kpi-value">{{ data.effectif?.medecins || 0 }}</span></div>
+                  <div class="kpi-card"><span class="kpi-label">Infirmiers</span><span class="kpi-value">{{ data.effectif?.infirmiers || 0 }}</span></div>
+                  <div class="kpi-card"><span class="kpi-label">Autres</span><span class="kpi-value">{{ data.effectif?.autres || 0 }}</span></div>
+                </div>
+              </ng-container>
+            </p-tabPanel>
+
+            <p-tabPanel header="Relations">
+              <ng-container *ngIf="selectedPole as pole">
+                <h4 class="subsection-title">Services du pôle</h4>
+                <ul class="plain-list">
+                  <li *ngFor="let s of pole.services">{{ s.nom }} <span class="badge-stat">{{ s.effectif.total }}</span></li>
+                </ul>
+              </ng-container>
+              <ng-container *ngIf="selectedService as service">
+                <h4 class="subsection-title">Équipes du service</h4>
+                <ul class="plain-list">
+                  <li *ngFor="let e of service.equipes">{{ e.nom }} <span class="badge-stat">{{ e.effectif.total }}</span></li>
+                </ul>
+              </ng-container>
+            </p-tabPanel>
+          </p-tabView>
+        </ng-container>
+
+        <ng-template #emptySelection>
+          <div class="empty-state">
+            <div class="empty-icon">👈</div>
+            <h3>Sélectionnez un élément</h3>
+            <p>Choisissez un pôle, un service ou une équipe dans l'arborescence pour afficher les détails.</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- Vue tableau -->
+  <ng-template #tableView>
+    <div class="card table-wrapper">
+      <p-table [value]="flatRows" responsiveLayout="scroll" [paginator]="true" [rows]="10">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Niveau</th>
+            <th>Nom</th>
+            <th>Code</th>
+            <th>Parent</th>
+            <th>Responsable</th>
+            <th>Effectifs</th>
+            <th>Statut</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
+          <tr>
+            <td><span class="badge-level" [style.background]="getLevelColor(row.niveau)">{{ row.niveau }}</span></td>
+            <td>{{ row.nom }}</td>
+            <td>{{ row.code }}</td>
+            <td>{{ row.parent }}</td>
+            <td>{{ row.responsable }}</td>
+            <td><span class="badge-stat">{{ row.effectifs }}</span></td>
+            <td><p-tag [value]="getStatusLabel(row.statut)" [severity]="getStatusSeverity(row.statut)"></p-tag></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </ng-template>
+</div>
+
+<!-- Dialogues (identiques à l'original) -->
+<p-dialog header="Créer un pôle" [(visible)]="poleDialog" [modal]="true" [style]="{ width: '42rem' }" class="modern-dialog">
+  <form [formGroup]="poleForm" class="dialog-form">
+    <!-- Section Informations générales -->
+    <div class="form-section">
+      <h4 class="section-title">Informations générales</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="poleNom">Nom <span class="required">*</span></label>
+          <input id="poleNom" pInputText formControlName="nom" placeholder="ex: Pôle Médecine" />
+          <small *ngIf="poleForm.get('nom')?.invalid && poleForm.get('nom')?.touched" class="p-error">
+            Le nom est requis
+          </small>
+        </div>
+        <div class="field">
+          <label for="poleCode">Code <span class="required">*</span></label>
+          <input id="poleCode" pInputText formControlName="code" placeholder="ex: MED" />
+          <small *ngIf="poleForm.get('code')?.invalid && poleForm.get('code')?.touched" class="p-error">
+            Le code est requis
+          </small>
+        </div>
+        <div class="field full">
+          <label for="poleDescription">Description</label>
+          <textarea id="poleDescription" pInputTextarea rows="3" formControlName="description" 
+                    placeholder="Description du pôle..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Responsables -->
+    <div class="form-section">
+      <h4 class="section-title">Responsables</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="poleResponsable">Chef de pôle <span class="required">*</span></label>
+          <p-dropdown inputId="poleResponsable" [options]="utilisateursOptions" 
+                      formControlName="chefPoleId" placeholder="Sélectionner un responsable" 
+                      appendTo="body" styleClass="w-full"></p-dropdown>
+          <small *ngIf="poleForm.get('chefPoleId')?.invalid && poleForm.get('chefPoleId')?.touched" class="p-error">
+            Le chef de pôle est requis
+          </small>
+        </div>
+        <div class="field">
+          <label for="poleAssistant">Assistant</label>
+          <p-dropdown inputId="poleAssistant" [options]="utilisateursOptions" 
+                      formControlName="assistantId" placeholder="Optionnel" 
+                      appendTo="body" styleClass="w-full"></p-dropdown>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Apparence -->
+    <div class="form-section">
+      <h4 class="section-title">Apparence</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="poleCouleur">Couleur</label>
+          <div class="color-picker-wrapper">
+            <input id="poleCouleur" type="color" formControlName="couleur" class="color-input" />
+            <span class="color-value">{{ poleForm.get('couleur')?.value }}</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="poleStatut">Statut</label>
+          <p-checkbox formControlName="statut" [binary]="true" inputId="poleStatut" label="Actif"></p-checkbox>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <button pButton label="Annuler" class="p-button-text" (click)="poleDialog = false"></button>
+    <button pButton label="Enregistrer" [disabled]="poleForm.invalid" (click)="savePole()"></button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="Créer un service" [(visible)]="serviceDialog" [modal]="true" [style]="{ width: '46rem' }" class="modern-dialog">
+  <form [formGroup]="serviceForm" class="dialog-form">
+    <!-- Section Informations générales -->
+    <div class="form-section">
+      <h4 class="section-title">Informations générales</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="serviceNom">Nom <span class="required">*</span></label>
+          <input id="serviceNom" pInputText formControlName="nom" placeholder="ex: Urgences" />
+          <small *ngIf="serviceForm.get('nom')?.invalid && serviceForm.get('nom')?.touched" class="p-error">
+            Le nom est requis
+          </small>
+        </div>
+        <div class="field">
+          <label for="serviceCode">Code <span class="required">*</span></label>
+          <input id="serviceCode" pInputText formControlName="code" placeholder="ex: URG" />
+          <small *ngIf="serviceForm.get('code')?.invalid && serviceForm.get('code')?.touched" class="p-error">
+            Le code est requis
+          </small>
+        </div>
+        <div class="field">
+          <label for="servicePole">Pôle <span class="required">*</span></label>
+          <p-dropdown inputId="servicePole" [options]="polesOptions" formControlName="poleId" 
+                      placeholder="Sélectionner un pôle" appendTo="body" styleClass="w-full"></p-dropdown>
+          <small *ngIf="serviceForm.get('poleId')?.invalid && serviceForm.get('poleId')?.touched" class="p-error">
+            Le pôle est requis
+          </small>
+        </div>
+        <div class="field">
+          <label for="serviceChef">Chef de service <span class="required">*</span></label>
+          <p-dropdown inputId="serviceChef" [options]="utilisateursOptions" formControlName="chefServiceId" 
+                      placeholder="Sélectionner un responsable" appendTo="body" styleClass="w-full"></p-dropdown>
+          <small *ngIf="serviceForm.get('chefServiceId')?.invalid && serviceForm.get('chefServiceId')?.touched" class="p-error">
+            Le chef est requis
+          </small>
+        </div>
+        <div class="field full">
+          <label for="serviceDescription">Description</label>
+          <textarea id="serviceDescription" pInputTextarea rows="3" formControlName="description" 
+                    placeholder="Description du service..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Coordonnées -->
+    <div class="form-section">
+      <h4 class="section-title">Coordonnées</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="serviceLocalisation">Localisation</label>
+          <input id="serviceLocalisation" pInputText formControlName="localisation" placeholder="ex: Bâtiment A, 3ème étage" />
+        </div>
+        <div class="field">
+          <label for="serviceTelephone">Téléphone</label>
+          <input id="serviceTelephone" pInputText formControlName="telephone" placeholder="ex: 01 23 45 67 89" />
+        </div>
+        <div class="field">
+          <label for="serviceEmail">Email</label>
+          <input id="serviceEmail" pInputText formControlName="email" placeholder="ex: contact@service.fr" />
+        </div>
+        <div class="field">
+          <!-- vide pour alignement -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Spécificités et effectifs -->
+    <div class="form-section">
+      <h4 class="section-title">Spécificités</h4>
+      <div class="field-grid">
+        <div class="field">
+          <label for="serviceEffectifMin">Effectif minimum <span class="required">*</span></label>
+          <input id="serviceEffectifMin" pInputText type="number" formControlName="effectifMinimum" placeholder="ex: 10" />
+          <small *ngIf="serviceForm.get('effectifMinimum')?.invalid && serviceForm.get('effectifMinimum')?.touched" class="p-error">
+            L'effectif minimum est requis et doit être ≥ 1
+          </small>
+        </div>
+        <div class="field">
+          <label>Options</label>
+          <div class="checkbox-group">
+            <p-checkbox formControlName="est24h" [binary]="true" inputId="est24h" label="24h/24"></p-checkbox>
+            <p-checkbox formControlName="estUrgence" [binary]="true" inputId="estUrg" label="Urgence"></p-checkbox>
+          </div>
+        </div>
+        <div class="field">
+          <label for="serviceCouleur">Couleur</label>
+          <div class="color-picker-wrapper">
+            <input id="serviceCouleur" type="color" formControlName="couleur" class="color-input" />
+            <span class="color-value">{{ serviceForm.get('couleur')?.value }}</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="serviceStatut">Statut</label>
+          <p-checkbox formControlName="statut" [binary]="true" inputId="serviceStatut" label="Actif"></p-checkbox>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <button pButton label="Annuler" class="p-button-text" (click)="serviceDialog = false"></button>
+    <button pButton label="Enregistrer" [disabled]="serviceForm.invalid" (click)="saveService()"></button>
+  </ng-template>
+</p-dialog>

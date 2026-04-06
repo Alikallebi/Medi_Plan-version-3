@@ -1,0 +1,376 @@
+<p-toast></p-toast>
+
+<div class="account-page" [class.is-loading]="loading">
+    <div class="account-shell">
+        <header class="account-header">
+            <div>
+                <p class="eyebrow">Espace personnel</p>
+                <h1>Mon Compte</h1>
+                <p class="subtitle">Les informations utiles pour gérer votre profil, vos notifications et vos disponibilités.</p>
+            </div>
+
+            <button
+                pButton
+                type="button"
+                class="p-button-rounded p-button-text close-button"
+                icon="pi pi-times"
+                pTooltip="Fermer"
+                tooltipPosition="left"
+                (click)="closePage()"></button>
+        </header>
+
+        <section class="account-grid" *ngIf="!loading; else loadingState">
+            <article class="panel panel-photo">
+                <div class="panel-title">
+                    <h2>Photo de profil</h2>
+                    <span>Visible dans l’application</span>
+                </div>
+
+                <div class="photo-card">
+                    <div class="avatar-frame">
+                        <img *ngIf="hasPhoto" [src]="account.photo!" [alt]="fullName" title="Photo de profil" />
+                        <span *ngIf="!hasPhoto">{{ profileInitials }}</span>
+                    </div>
+
+                    <div class="photo-actions">
+                        <strong>{{ fullName }}</strong>
+                        <span>{{ account.metier }} · {{ account.service }}</span>
+                        <button pButton type="button" class="p-button-outlined" icon="pi pi-camera" label="Changer photo" (click)="openPhotoPicker(photoInput)"></button>
+                        <input #photoInput type="file" accept="image/png,image/jpeg,image/webp" hidden (change)="onPhotoSelected($event)" />
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel panel-personal">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Informations personnelles</h2>
+                        <span>Modifiables par l’utilisateur</span>
+                    </div>
+
+                    <div class="actions-inline" *ngIf="!editMode">
+                        <button pButton type="button" class="p-button-outlined" icon="pi pi-pencil" label="Modifier" (click)="enableEdit()"></button>
+                    </div>
+                    <div class="actions-inline" *ngIf="editMode">
+                        <button pButton type="button" class="p-button-text" label="Annuler" (click)="cancelEdit()"></button>
+                        <button pButton type="button" icon="pi pi-save" label="Enregistrer" [loading]="savingProfile" (click)="saveProfile()"></button>
+                    </div>
+                </div>
+
+                <div class="info-list" *ngIf="!editMode">
+                    <div class="info-row">
+                        <span class="label">Nom complet</span>
+                        <span class="value">{{ fullName }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Email</span>
+                        <span class="value">{{ account.email || 'Non renseigné' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Téléphone</span>
+                        <span class="value">{{ account.telephone || account.mobile || 'Non renseigné' }}</span>
+                    </div>
+                </div>
+
+                <div class="edit-grid" *ngIf="editMode">
+                    <label>
+                        <span>Prénom</span>
+                        <input type="text" [(ngModel)]="profileForm.prenom" />
+                    </label>
+                    <label>
+                        <span>Nom</span>
+                        <input type="text" [(ngModel)]="profileForm.nom" />
+                    </label>
+                    <label>
+                        <span>Email</span>
+                        <input type="email" [(ngModel)]="profileForm.email" />
+                    </label>
+                    <label>
+                        <span>Téléphone</span>
+                        <input type="text" [(ngModel)]="profileForm.telephone" />
+                    </label>
+                </div>
+            </article>
+
+            <article class="panel panel-professional">
+                <div class="panel-title">
+                    <h2>Informations professionnelles</h2>
+                    <span>Lecture seule</span>
+                </div>
+
+                <div class="info-list">
+                    <div class="info-row">
+                        <span class="label">Matricule</span>
+                        <span class="value">{{ account.matricule }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Métier</span>
+                        <span class="value">{{ account.metier }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Spécialité</span>
+                        <span class="value">{{ account.specialite }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Service</span>
+                        <span class="value">{{ account.service }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Équipe</span>
+                        <span class="value">{{ account.equipe }}</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel panel-security">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Sécurité</h2>
+                        <span>Accès et confidentialité</span>
+                    </div>
+
+                    <button pButton type="button" class="p-button-outlined" icon="pi pi-key" [label]="passwordFormVisible ? 'Fermer' : 'Changer'" (click)="togglePasswordForm()"></button>
+                </div>
+
+                <div class="security-row">
+                    <span class="label">Mot de passe</span>
+                    <span class="value">********</span>
+                </div>
+
+                <div class="password-form" *ngIf="passwordFormVisible">
+                    <label>
+                        <span>Nouveau mot de passe</span>
+                        <input type="password" [(ngModel)]="passwordForm.password" />
+                    </label>
+                    <label>
+                        <span>Confirmer le mot de passe</span>
+                        <input type="password" [(ngModel)]="passwordForm.confirmPassword" />
+                    </label>
+                    <div class="actions-inline end">
+                        <button pButton type="button" class="p-button-text" label="Annuler" (click)="togglePasswordForm()"></button>
+                        <button pButton type="button" icon="pi pi-check" label="Mettre à jour" [loading]="savingPassword" (click)="savePassword()"></button>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel panel-notifications">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Préférences de notification</h2>
+                        <span>Canaux de réception</span>
+                    </div>
+
+                    <button pButton type="button" icon="pi pi-save" label="Enregistrer" [loading]="savingNotifications" (click)="saveNotificationPreferences()"></button>
+                </div>
+
+                <label class="toggle-row">
+                    <input type="checkbox" [(ngModel)]="account.notifEmail" />
+                    <span>Recevoir les notifications par email</span>
+                </label>
+
+                <label class="toggle-row">
+                    <input type="checkbox" [(ngModel)]="account.notifSMS" />
+                    <span>Recevoir les notifications par SMS</span>
+                </label>
+            </article>
+
+            <article class="panel panel-absences">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Mes absences / disponibilités</h2>
+                        <span>Vue synthétique issue du planning</span>
+                    </div>
+
+                    <button pButton type="button" class="p-button-outlined" icon="pi pi-plus" label="Demander une absence" (click)="requestAbsence()"></button>
+                </div>
+
+                <div class="absence-table-wrapper">
+                    <table class="absence-table">
+                        <thead>
+                            <tr>
+                                <th>Période</th>
+                                <th>Type</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let absence of absences; trackBy: trackByPeriod">
+                                <td>{{ absence.periode }}</td>
+                                <td>{{ absence.type }}</td>
+                                <td>
+                                    <span class="status-badge" [ngClass]="absence.badgeClass">{{ absence.statut }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="panel panel-personal-planning">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Mon planning personnel - Demandes HS / RC / Absence</h2>
+                        <span>Déclarez vos événements et suivez le statut de validation</span>
+                        <div class="planning-week-label">{{ planningWeekLabel }}</div>
+                    </div>
+                </div>
+
+                <div class="counters-grid">
+                    <div class="counter-card positive">
+                        <span class="counter-label">Solde RC+</span>
+                        <strong class="counter-value">{{ counters?.soldeRcPlus ?? 0 | number:'1.0-2' }} h</strong>
+                    </div>
+                    <div class="counter-card negative">
+                        <span class="counter-label">Solde RC-</span>
+                        <strong class="counter-value">{{ counters?.soldeRcMoins ?? 0 | number:'1.0-2' }} h</strong>
+                    </div>
+                </div>
+
+                <div class="absence-table-wrapper" *ngIf="!loadingPersonalPlanning; else planningLoading">
+                    <table class="absence-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Affectation</th>
+                                <th>Horaire</th>
+                                <th>Demandes en attente</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let entry of planningEntries">
+                                <td>{{ entry.date | date:'dd/MM/yyyy' }}</td>
+                                <td>{{ entry.poste }}</td>
+                                <td>{{ (entry.heureDebut || '--:--') + ' - ' + (entry.heureFin || '--:--') }}</td>
+                                <td>
+                                    <span class="pending-pill" *ngIf="countPendingForDate(entry.date) > 0">
+                                        {{ countPendingForDate(entry.date) }}
+                                    </span>
+                                    <span *ngIf="countPendingForDate(entry.date) === 0">-</span>
+                                </td>
+                                <td>
+                                    <button pButton type="button" class="p-button-sm p-button-outlined" icon="pi pi-plus" label="Nouvelle demande" (click)="openRequestModal(entry)"></button>
+                                </td>
+                            </tr>
+                            <tr *ngIf="planningEntries.length === 0">
+                                <td colspan="5">Aucune affectation personnelle disponible.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="request-history">
+                    <h3>Historique des demandes</h3>
+                    <table class="absence-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Créneau</th>
+                                <th>Statut</th>
+                                <th>Motif</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let request of personalRequests">
+                                <td>{{ request.date | date:'dd/MM/yyyy' }}</td>
+                                <td>{{ request.type }}</td>
+                                <td>{{ request.heureDebut }} - {{ request.heureFin }}</td>
+                                <td><span class="status-badge" [ngClass]="getRequestStatusClass(request.statut)">{{ getRequestStatusLabel(request.statut) }}</span></td>
+                                <td>{{ request.motifRejet || request.commentaire || '-' }}</td>
+                            </tr>
+                            <tr *ngIf="personalRequests.length === 0">
+                                <td colspan="5">Aucune demande enregistrée.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="panel panel-display">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Préférences d’affichage</h2>
+                        <span>Confort d’utilisation</span>
+                    </div>
+
+                    <button pButton type="button" icon="pi pi-save" label="Appliquer" (click)="applyDisplayPreferences()"></button>
+                </div>
+
+                <div class="display-grid">
+                    <div>
+                        <span class="sub-label">Thème</span>
+                        <div class="theme-switcher">
+                            <label>
+                                <input type="radio" name="theme" value="light" [(ngModel)]="selectedTheme" />
+                                <span>Clair</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="theme" value="dark" [(ngModel)]="selectedTheme" />
+                                <span>Sombre</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <label>
+                        <span class="sub-label">Langue</span>
+                        <select [(ngModel)]="selectedLanguage">
+                            <option value="fr">Français</option>
+                            <option value="en">English</option>
+                            <option value="ar">العربية</option>
+                        </select>
+                    </label>
+                </div>
+            </article>
+        </section>
+    </div>
+</div>
+
+<div class="request-modal-backdrop" *ngIf="requestModalVisible" (click)="closeRequestModal()"></div>
+<div class="request-modal" *ngIf="requestModalVisible">
+    <h3>Nouvelle demande personnelle</h3>
+    <p *ngIf="selectedPlanningEntry">Jour concerné: {{ selectedPlanningEntry.date | date:'dd/MM/yyyy' }} - {{ selectedPlanningEntry.poste }}</p>
+
+    <label>
+        <span>Type d'événement</span>
+        <select [(ngModel)]="requestForm.type">
+            <option *ngFor="let option of requestTypeOptions" [ngValue]="option.value">{{ option.label }}</option>
+        </select>
+    </label>
+
+    <div class="modal-hours">
+        <label>
+            <span>Heure début</span>
+            <input type="time" [(ngModel)]="requestForm.heureDebut" />
+        </label>
+        <label>
+            <span>Heure fin</span>
+            <input type="time" [(ngModel)]="requestForm.heureFin" />
+        </label>
+    </div>
+
+    <label>
+        <span>Commentaire</span>
+        <textarea rows="3" [(ngModel)]="requestForm.commentaire"></textarea>
+    </label>
+
+    <div class="actions-inline end">
+        <button pButton type="button" class="p-button-text" label="Annuler" (click)="closeRequestModal()"></button>
+        <button pButton type="button" icon="pi pi-send" label="Envoyer la demande" [loading]="requestSubmitting" (click)="submitPersonalRequest()"></button>
+    </div>
+</div>
+
+<ng-template #loadingState>
+    <div class="loading-card">
+        <div class="loading-line title"></div>
+        <div class="loading-line"></div>
+        <div class="loading-line short"></div>
+    </div>
+</ng-template>
+
+<ng-template #planningLoading>
+    <div class="loading-card">
+        <div class="loading-line title"></div>
+        <div class="loading-line"></div>
+    </div>
+</ng-template>

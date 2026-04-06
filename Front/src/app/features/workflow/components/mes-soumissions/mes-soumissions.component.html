@@ -1,0 +1,139 @@
+<div class="mes-soumissions-page">
+  <!-- En-tête -->
+  <div class="page-header">
+    <div class="header-left">
+      <button class="btn-back" (click)="retourPlanning()">← Retour au Planning</button>
+      <div>
+        <h1>📋 Mes Soumissions</h1>
+        <p class="subtitle">Suivez l'état de vos plannings soumis pour validation</p>
+      </div>
+    </div>
+    <button class="btn-refresh" (click)="loadSoumissions()" [disabled]="isLoading">
+      <span [class.spin]="isLoading">🔄</span> Actualiser
+    </button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi-card kpi-total">
+      <span class="kpi-number">{{ soumissions.length }}</span>
+      <span class="kpi-label">Total</span>
+    </div>
+    <div class="kpi-card kpi-pending">
+      <span class="kpi-number">{{ totalEnAttente }}</span>
+      <span class="kpi-label">En attente</span>
+    </div>
+    <div class="kpi-card kpi-approved">
+      <span class="kpi-number">{{ totalValides }}</span>
+      <span class="kpi-label">Validés</span>
+    </div>
+    <div class="kpi-card kpi-rejected">
+      <span class="kpi-number">{{ totalRejetes }}</span>
+      <span class="kpi-label">Rejetés</span>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="filter-bar">
+    <label class="filter-label">Filtrer par statut :</label>
+    <div class="filter-pills">
+      <button class="pill" [class.active]="selectedStatut === 'tous'" (click)="selectedStatut = 'tous'">Tous</button>
+      <button class="pill" [class.active]="selectedStatut === 'BROUILLON'" (click)="selectedStatut = 'BROUILLON'">📝 Brouillon</button>
+      <button class="pill" [class.active]="selectedStatut === 'EN_ATTENTE_VALIDATION'" (click)="selectedStatut = 'EN_ATTENTE_VALIDATION'">⏳ En attente</button>
+      <button class="pill" [class.active]="selectedStatut === 'VALIDE'" (click)="selectedStatut = 'VALIDE'">✅ Validés</button>
+      <button class="pill" [class.active]="selectedStatut === 'REJETE'" (click)="selectedStatut = 'REJETE'">❌ Rejetés</button>
+    </div>
+  </div>
+
+  <!-- Chargement -->
+  <div class="loading-state" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Chargement de vos soumissions...</p>
+  </div>
+
+  <!-- Erreur -->
+  <div class="error-state" *ngIf="!isLoading && hasError">
+    <div class="error-icon">⚠️</div>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="loadSoumissions()">Réessayer</button>
+  </div>
+
+  <!-- Liste vide -->
+  <div class="empty-state" *ngIf="!isLoading && !hasError && filteredSoumissions.length === 0">
+    <div class="empty-icon">📋</div>
+    <h3>Aucune soumission</h3>
+    <p *ngIf="selectedStatut === 'tous'">Vous n'avez pas encore soumis de planning pour validation.</p>
+    <p *ngIf="selectedStatut !== 'tous'">Aucun planning avec ce statut.</p>
+    <button class="btn-primary" (click)="retourPlanning()">Créer un Planning</button>
+  </div>
+
+  <!-- Grille des cartes -->
+  <div class="soumissions-grid" *ngIf="!isLoading && !hasError && filteredSoumissions.length > 0">
+    <div class="soumission-card" *ngFor="let s of filteredSoumissions">
+      <!-- En-tête carte -->
+      <div class="card-header">
+        <div class="card-service">
+          <span class="service-icon">🏥</span>
+          <span class="service-name">{{ s.serviceName }}</span>
+        </div>
+        <span class="badge" [ngClass]="getStatutClass(s.statut)">
+          {{ getStatutIcon(s.statut) }} {{ getStatutLabel(s.statut) }}
+        </span>
+      </div>
+
+      <!-- Corps carte -->
+      <div class="card-body">
+        <div class="info-row">
+          <span class="info-icon">📅</span>
+          <span>{{ formatWeek(s.weekStart) }}</span>
+        </div>
+        <div class="info-row" *ngIf="s.dateSoumission">
+          <span class="info-icon">📤</span>
+          <span>Soumis le {{ formatDate(s.dateSoumission) }}
+            <em class="days-ago">({{ getJoursDepuis(s.dateSoumission) }} jour(s))</em>
+          </span>
+        </div>
+        <div class="info-row" *ngIf="s.prochainValidateurNom">
+          <span class="info-icon">👤</span>
+          <span>
+            En attente de : <strong>{{ s.prochainValidateurNom }}</strong>
+            <em *ngIf="s.prochainValidateurRole">({{ getRoleLabel(s.prochainValidateurRole) }})</em>
+          </span>
+        </div>
+        <div class="info-row" *ngIf="s.assignmentsCount > 0">
+          <span class="info-icon">📊</span>
+          <span>{{ s.assignmentsCount }} affectation(s)</span>
+        </div>
+        <div class="info-row etape" *ngIf="s.statut === 'EN_ATTENTE_VALIDATION' || s.statut === 'EN_ATTENTE_VALIDATION_FINALE'">
+          <span class="info-icon">🔢</span>
+          <span>Étape {{ s.etapeActuelle }} en cours</span>
+        </div>
+        <!-- Motif de rejet -->
+        <div class="rejet-motif" *ngIf="s.statut === 'REJETE' && s.rejetMotif">
+          <span class="info-icon">❌</span>
+          <div>
+            <strong>Motif de rejet :</strong>
+            <p>{{ s.rejetMotif }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pied de carte -->
+      <div class="card-footer">
+        <button class="btn-detail" (click)="voirDetail(s)">
+          🔎 Suivre l’état
+        </button>
+        <button class="btn-soumettre"
+          *ngIf="s.statut === 'BROUILLON'"
+          (click)="soumettrePlanning(s)">
+          📤 Soumettre
+        </button>
+        <button class="btn-edit"
+          *ngIf="s.statut === 'REJETE' || s.statut === 'BROUILLON'"
+          (click)="retourPlanning()">
+          ✏️ Modifier
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

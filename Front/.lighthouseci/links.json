@@ -1,0 +1,4 @@
+{
+  "http://localhost:4200/auth/login": "https://storage.googleapis.com/lighthouse-infrastructure.appspot.com/reports/1772121083483-74090.report.html",
+  "http://localhost:4200/workflow/validation-inbox": "https://storage.googleapis.com/lighthouse-infrastructure.appspot.com/reports/1772121084599-56023.report.html"
+}

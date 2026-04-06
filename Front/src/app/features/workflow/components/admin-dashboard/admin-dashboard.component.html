@@ -1,0 +1,145 @@
+<section class="admin-dashboard-page">
+    <header class="dashboard-header"> <h1>📊</h1>
+        <h2> Tableau de bord administrateur</h2>
+        <div class="dashboard-actions">
+            <a routerLink="/workflow/workflow-config" class="btn btn-config" pTooltip="Configurer les workflows">
+                <i class="pi pi-cog"></i> Workflows
+            </a>
+            <a routerLink="/workflow/audit-trail" class="btn btn-audit" pTooltip="Consulter l'audit trail">
+                <i class="pi pi-history"></i> Audit
+            </a>
+            <button type="button" class="btn refresh" [disabled]="isRefreshing" (click)="refresh()">
+                <i class="pi pi-refresh" [class.spin]="isRefreshing"></i>
+                {{ isRefreshing ? 'Actualisation...' : 'Actualiser' }}
+            </button>
+        </div>
+    </header>
+
+    <!-- État de chargement -->
+    <div class="state loading" *ngIf="isLoading">
+        <div class="skeleton card" *ngFor="let item of [1,2,3,4]"></div>
+    </div>
+
+    <!-- État d'erreur -->
+    <div class="state error" *ngIf="!isLoading && hasError">
+        <i class="pi pi-exclamation-triangle error-icon"></i>
+        <p>{{ errorMessage }}</p>
+        <button type="button" class="btn" (click)="retry()">Réessayer</button>
+    </div>
+
+    <!-- Contenu principal -->
+    <ng-container *ngIf="!isLoading && !hasError && stats">
+        <!-- KPIs avec tendances -->
+        <section class="kpi-grid">
+            <div class="kpi-card" *ngFor="let kpi of kpiList">
+                <div class="kpi-header">
+                    <span class="kpi-icon" [style.background]="kpi.color + '20'" [style.color]="kpi.color">
+                        <i [class]="kpi.icon"></i>
+                    </span>
+                    <span class="kpi-trend" [class.trend-up]="kpi.trend > 0" [class.trend-down]="kpi.trend < 0">
+                        <i class="pi" [ngClass]="kpi.trend > 0 ? 'pi-arrow-up' : (kpi.trend < 0 ? 'pi-arrow-down' : 'pi-minus')"></i>
+                        {{ kpi.trend > 0 ? '+' : '' }}{{ kpi.trend }}%
+                    </span>
+                </div>
+                <div class="kpi-value">{{ kpi.value }}</div>
+                <div class="kpi-label">{{ kpi.label }}</div>
+                <div class="kpi-comparison" *ngIf="kpi.comparison">vs période précédente</div>
+            </div>
+        </section>
+
+        <!-- Graphiques d'évolution -->
+        <section class="panel chart-panel">
+            <h3><i class="pi pi-chart-line"></i> Évolution des validations</h3>
+            <p-chart type="line" [data]="chartData" [options]="chartOptions" style="height: 300px;"></p-chart>
+        </section>
+
+        <!-- Plannings bloqués / en retard -->
+        <section class="panel blocked-panel">
+            <h3><i class="pi pi-exclamation-triangle"></i> Plannings bloqués / en retard</h3>
+            <div *ngIf="blockedPlannings.length === 0" class="empty-blocked">
+                <i class="pi pi-check-circle"></i> Aucun planning bloqué
+            </div>
+            <div class="blocked-list" *ngIf="blockedPlannings.length > 0">
+                <div class="blocked-item" *ngFor="let plan of blockedPlannings">
+                    <div class="blocked-header">
+                        <span class="service">{{ plan.service }}</span>
+                        <span class="badge" [class.urgent]="plan.urgent">{{ plan.statut }}</span>
+                    </div>
+                    <div class="blocked-body">
+                        <div><i class="pi pi-calendar"></i> Semaine du {{ plan.weekStart | date:'dd/MM' }}</div>
+                        <div><i class="pi pi-user"></i> Bloqué chez : <strong>{{ plan.bloqueChez }}</strong></div>
+                        <div><i class="pi pi-clock"></i> En retard de {{ plan.retard }}</div>
+                    </div>
+                    <div class="blocked-actions">
+                        <button class="btn-icon" pTooltip="Relancer le validateur" (click)="onRelancer(plan)">
+                            <i class="pi pi-bell"></i>
+                        </button>
+                        <button class="btn-icon" pTooltip="Réaffecter" (click)="onReaffecter(plan)">
+                            <i class="pi pi-users"></i>
+                        </button>
+                        <button class="btn-icon" pTooltip="Valider d'office" (click)="onValiderDOffice(plan)">
+                            <i class="pi pi-check-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Performance des validateurs -->
+        <section class="panel validator-panel">
+            <h3><i class="pi pi-users"></i> Performance des validateurs</h3>
+            <p-table [value]="validatorPerformance" styleClass="p-datatable-striped" responsiveLayout="scroll">
+                <ng-template pTemplate="header">
+                    <tr>
+                        <th>Validateur</th>
+                        <th>Validations</th>
+                        <th>Temps moyen</th>
+                        <th>Rejets</th>
+                        <th>Demandes de modif</th>
+                        <th>Tendance</th>
+                    </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-item>
+                    <tr>
+                        <td><strong>{{ item.nom }}</strong></td>
+                        <td>{{ item.validations }}</td>
+                        <td>{{ item.tempsMoyen }}h</td>
+                        <td>{{ item.rejets }}</td>
+                        <td>{{ item.demandesModif }}</td>
+                        <td>
+                            <span class="trend" [class.trend-up]="item.tendance > 0" [class.trend-down]="item.tendance < 0">
+                                <i class="pi" [ngClass]="item.tendance > 0 ? 'pi-arrow-up' : (item.tendance < 0 ? 'pi-arrow-down' : 'pi-minus')"></i>
+                                {{ item.tendance > 0 ? '+' : '' }}{{ item.tendance }}%
+                            </span>
+                        </td>
+                    </tr>
+                </ng-template>
+            </p-table>
+        </section>
+
+        <!-- Activités récentes -->
+        <section class="panel recent-panel">
+            <h3><i class="pi pi-history"></i> Activités récentes</h3>
+            <div class="activity-list">
+                <div class="activity-item" *ngFor="let act of recentActivities">
+                    <span class="activity-icon" [ngClass]="act.type">
+                        <i [class]="getActivityIcon(act.type)"></i>
+                    </span>
+                    <div class="activity-content">
+                        <div class="activity-title">{{ act.title }}</div>
+                        <div class="activity-meta">
+                            <span><i class="pi pi-user"></i> {{ act.user }}</span>
+                            <span><i class="pi pi-calendar"></i> {{ act.date | date:'dd/MM HH:mm' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-view-all" routerLink="/workflow/audit-trail">Voir toutes les activités</button>
+        </section>
+
+        <!-- Pied de page : dernière mise à jour -->
+        <footer class="last-update">
+            <i class="pi pi-refresh"></i> Dernière mise à jour : {{ lastUpdated | date:'dd/MM/yyyy HH:mm' }}
+        </footer>
+    </ng-container>
+</section>

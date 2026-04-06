@@ -1,0 +1,35 @@
+<div class="modal-backdrop" (click)="onCancel()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+        <header>
+            <h3>✏️ DEMANDER DES MODIFICATIONS</h3>
+            <button type="button" (click)="onCancel()">✖</button>
+        </header>
+
+        <p><strong>Planning:</strong> {{ planning.serviceName }} ({{ planning.id }})</p>
+
+        <label>Instructions pour le créateur *</label>
+        <textarea rows="4" [(ngModel)]="instructions" [disabled]="isSubmitting"></textarea>
+
+        <div class="priority-row">
+            <span>Priorité :</span>
+            <label><input type="radio" name="priorite" value="normale" [(ngModel)]="priorite" [disabled]="isSubmitting" /> Normale</label>
+            <label><input type="radio" name="priorite" value="urgente" [(ngModel)]="priorite" [disabled]="isSubmitting" /> Urgente</label>
+        </div>
+
+        <label>Date souhaitée de retour</label>
+        <input type="date" [(ngModel)]="dateRetour" [disabled]="isSubmitting" />
+
+        <label class="check-row">
+            <input type="checkbox" [(ngModel)]="notifierCreateur" [disabled]="isSubmitting" />
+            Notifier le créateur immédiatement
+        </label>
+
+        <footer>
+            <button type="button" class="btn cancel" (click)="onCancel()" [disabled]="isSubmitting">✖ Annuler</button>
+            <button type="button" class="btn confirm" (click)="onConfirm()" [disabled]="!isFormValid || isSubmitting">
+                <span *ngIf="!isSubmitting">✏️ Envoyer la demande</span>
+                <span *ngIf="isSubmitting">⏳ En cours...</span>
+            </button>
+        </footer>
+    </div>
+</div>

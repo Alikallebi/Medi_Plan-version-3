@@ -1,0 +1,25 @@
+<div class="kpi-grid" *ngIf="stats">
+    <article class="kpi-card">
+        <h4>📅 EN ATTENTE</h4>
+        <p class="value">{{ stats.enAttente }}</p>
+        <small>plannings</small>
+    </article>
+
+    <article class="kpi-card alert">
+        <h4>⏳ DÉPASSÉS</h4>
+        <p class="value">{{ stats.depasses }}</p>
+        <small>plannings</small>
+    </article>
+
+    <article class="kpi-card success">
+        <h4>✅ VALIDÉS</h4>
+        <p class="value">{{ stats.validesCeMois }}</p>
+        <small>ce mois</small>
+    </article>
+
+    <article class="kpi-card">
+        <h4>⏱️ TEMPS MOY</h4>
+        <p class="value">{{ tempsMoyenLabel }}</p>
+        <small>validation</small>
+    </article>
+</div>

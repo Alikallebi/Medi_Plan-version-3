@@ -1,0 +1,202 @@
+@startuml CLINISYS_Workflow_Lifecycle
+'======================================================
+' CLINISYS – Cycle de vie du workflow de validation
+' Phase 3 – Documentation technique
+' Généré le : 2026-03-05
+'======================================================
+
+' ── Thème & Police ──────────────────────────────────
+!theme plain
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 13
+skinparam BackgroundColor #F8FAFC
+skinparam RoundCorner 12
+
+' ── Couleurs par état ───────────────────────────────
+skinparam state {
+    BackgroundColor<<brouillon>>           #DBEAFE
+    BorderColor<<brouillon>>               #3B82F6
+    FontColor<<brouillon>>                 #1D4ED8
+
+    BackgroundColor<<validation>>          #FEF3C7
+    BorderColor<<validation>>              #F59E0B
+    FontColor<<validation>>                #92400E
+
+    BackgroundColor<<validation_finale>>   #FDE8D8
+    BorderColor<<validation_finale>>       #EA580C
+    FontColor<<validation_finale>>         #9A3412
+
+    BackgroundColor<<valide>>              #D1FAE5
+    BorderColor<<valide>>                  #10B981
+    FontColor<<valide>>                    #065F46
+
+    BackgroundColor<<rejete>>              #FEE2E2
+    BorderColor<<rejete>>                  #EF4444
+    FontColor<<rejete>>                    #991B1B
+
+    BackgroundColor<<correction>>          #EDE9FE
+    BorderColor<<correction>>              #8B5CF6
+    FontColor<<correction>>                #4C1D95
+
+    BorderColor                            #94A3B8
+    BackgroundColor                        #FFFFFF
+    FontSize                               13
+    ArrowFontSize                          11
+}
+
+skinparam ArrowColor #475569
+skinparam ArrowFontColor #334155
+skinparam NoteBackgroundColor #FFFBEB
+skinparam NoteBorderColor #D97706
+skinparam NoteFontSize 11
+skinparam NoteBackgroundColor #F0FDF4
+skinparam NoteBorderColor #22C55E
+
+'======================================================
+' LÉGENDE DES ACTEURS
+'======================================================
+legend right
+  <b>Acteurs</b>
+  ──────────────────────────────
+  <color:#3B82F6>●</color>  <b>Gestionnaire</b> : crée et soumet le planning
+  <color:#F59E0B>●</color>  <b>Validateur (Étape N)</b> : approuve / rejette
+  <color:#EA580C>●</color>  <b>Super Admin</b> : validation finale obligatoire
+  <color:#8B5CF6>●</color>  <b>Validateur</b> : peut demander une correction
+  ──────────────────────────────
+  <b>Actions de transition</b>
+  ──────────────────────────────
+  SOUMISSION        → soumettre pour validation
+  APPROUVE          → approuver l'étape courante
+  APPROUVE_AUTO     → auto-approbation (soumetteur = validateur)
+  REJETE            → rejeter définitivement
+  DEMANDE_MODIF     → retourner en brouillon pour correction
+endlegend
+
+'======================================================
+' ÉTATS
+'======================================================
+
+[*] --> BROUILLON : <<create>>\n**CREATION**\n//Gestionnaire//
+
+state BROUILLON <<brouillon>> : **BROUILLON**\n──────────────\nPlanning en cours d'édition.\nLe gestionnaire ajoute\ndes affectations.\n\n<i>Prérequis soumission :</i>\n• ≥ 1 affectation présente\n• Config. workflow active
+
+state EN_ATTENTE_VALIDATION <<validation>> : **EN_ATTENTE_VALIDATION**\n──────────────\nEn attente du validateur\nde l'étape courante (étape N).\n\n<i>Champ :</i> etape_actuelle = N\n<i>Champ :</i> prochain_validateur_id
+
+state EN_ATTENTE_VALIDATION_FINALE <<validation_finale>> : **EN_ATTENTE_VALIDATION_FINALE**\n──────────────\nDernière étape de validation.\nRéservée au **Super Admin**.\nApprobation finale\nblocante.
+
+state VALIDE <<valide>> : **VALIDE**\n──────────────\nPlanning définitivement\napprouvé par toutes\nles étapes du circuit.\nPublié et applicable.
+
+state REJETE <<rejete>> : **REJETE**\n──────────────\nPlanning refusé.\nMotif conservé en base.\nLe créateur est notifié.\n\n<i>Champ :</i> rejete_motif
+
+state EN_CORRECTION <<correction>> : **EN_CORRECTION**\n──────────────\n[Modèle abstrait]\nÉtat intermédiaire signalant\nque le gestionnaire doit\nrépondre aux instructions\ndu validateur.
+
+'======================================================
+' TRANSITIONS
+'======================================================
+
+' ── Brouillon → Soumission ──────────────────────────
+BROUILLON --> EN_ATTENTE_VALIDATION : **SOUMISSION**\n//Gestionnaire//\n[affectations > 0\n& config active]
+
+note on link
+  🔔 Notification envoyée
+  au prochain_validateur_id
+  (type : WORKFLOW_SOUMIS)
+end note
+
+' ── Cas limite : toutes les étapes auto-validées ────
+BROUILLON --> VALIDE : **APPROUVE_AUTO (×n)**\n//[soumetteur = tous les validateurs]//
+
+note right of BROUILLON
+  <b>Auto-validation (edge case)</b>
+  Si le gestionnaire qui soumet
+  est lui-même le validateur
+  de TOUTES les étapes configurées,
+  le planning passe directement
+  à l'état VALIDE.
+end note
+
+' ── Validation intermédiaire ────────────────────────
+EN_ATTENTE_VALIDATION --> EN_ATTENTE_VALIDATION : **APPROUVE**\n//Validateur Étape N//\n[étapes suivantes existent\n& non-finale]
+
+note on link
+  🔔 Notification envoyée
+  au validateur de l'étape N+1
+  (type : WORKFLOW_SOUMIS)
+end note
+
+EN_ATTENTE_VALIDATION --> EN_ATTENTE_VALIDATION_FINALE : **APPROUVE**\n//Validateur Étape N//\n[prochaine étape = finale\n(IsFinalApproval = true)]
+
+note on link
+  🔔 Notification envoyée
+  au Super Admin
+  (type : WORKFLOW_SOUMIS)
+end note
+
+' ── Validation finale ───────────────────────────────
+EN_ATTENTE_VALIDATION_FINALE --> VALIDE : **APPROUVE (finale)**\n//Super Admin//\n[toutes les étapes franchies]
+
+note on link
+  🔔 Notification envoyée au créateur
+  (type : WORKFLOW_VALIDE)
+end note
+
+' ── Validation directe (dernière étape non-finale) ──
+EN_ATTENTE_VALIDATION --> VALIDE : **APPROUVE**\n//Validateur//\n[aucune étape suivante\n& non-finale]
+
+note on link
+  🔔 Notification WORKFLOW_VALIDE
+  envoyée au créateur
+end note
+
+' ── Rejet ───────────────────────────────────────────
+EN_ATTENTE_VALIDATION --> REJETE : **REJETE**\n//Validateur Étape N//
+
+note on link
+  🔔 Notification WORKFLOW_REJETE
+  envoyée au créateur
+end note
+
+EN_ATTENTE_VALIDATION_FINALE --> REJETE : **REJETE**\n//Super Admin//
+
+' ── Demande de modification → retour en brouillon ──
+EN_ATTENTE_VALIDATION --> BROUILLON : **DEMANDE_MODIF**\n//Validateur//\n<i>statut → BROUILLON, etape_actuelle → 0</i>
+
+note on link
+  🔔 Notification WORKFLOW_REVISION
+  envoyée au créateur avec instructions
+end note
+
+EN_ATTENTE_VALIDATION_FINALE --> BROUILLON : **DEMANDE_MODIF**\n//Super Admin//
+
+' ── EN_CORRECTION (modèle abstrait) ─────────────────
+EN_ATTENTE_VALIDATION --> EN_CORRECTION : **RETOUR_CORRECTION**\n//[modèle abstrait uniquement]//
+
+EN_CORRECTION --> BROUILLON : Correction effectuée\n//Gestionnaire//
+
+' ── Après rejet : resoumission possible ─────────────
+REJETE --> BROUILLON : **Réouverture**\n//Gestionnaire//\n[optionnel – correction du planning]
+
+' ── États terminaux ─────────────────────────────────
+VALIDE --> [*]
+REJETE --> [*] : Archivage
+
+'======================================================
+' TABLEAU DES STATUTS MYSQL
+'======================================================
+note as TableNote
+  <b>Statuts en base de données (MySQL)</b>
+  ════════════════════════════════════════
+  | Valeur colonne <i>statut</i>       | Description                        |
+  |─────────────────────────────|─────────────────────────────────────|
+  | BROUILLON                   | Brouillon / en correction            |
+  | EN_ATTENTE_VALIDATION       | Validation intermédiaire (étape N)   |
+  | EN_ATTENTE_VALIDATION_FINALE| Validation finale (Super Admin)      |
+  | VALIDE                      | Approuvé par toutes les étapes       |
+  | REJETE                      | Refusé – motif conservé              |
+  ════════════════════════════════════════
+  <b>Enum C# WorkflowStatut (modèle abstrait)</b>
+  BROUILLON · EN_ATTENTE_VALIDATION_N1 · EN_ATTENTE_VALIDATION_N2
+  EN_ATTENTE_VALIDATION_RH · VALIDE · REJETE · EN_CORRECTION
+end note
+
+@enduml

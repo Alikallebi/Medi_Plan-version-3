@@ -1,0 +1,28 @@
+<div class="modal-backdrop" (click)="close.emit()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+        <header>
+            <h3>📋 DÉTAIL DE L'ÉVÉNEMENT</h3>
+            <button type="button" (click)="close.emit()">✖</button>
+        </header>
+
+        <div class="content" *ngIf="event">
+            <p><strong>📅 Date :</strong> {{ event.date | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            <p><strong>👤 Utilisateur :</strong> {{ event.utilisateurNom }}</p>
+            <p><strong>🎭 Rôle :</strong> {{ event.utilisateurRole }}</p>
+            <p><strong>🖥️ IP :</strong> {{ event.ipAdresse || '-' }}</p>
+            <p><strong>🌐 Navigateur :</strong> {{ event.userAgent || '-' }}</p>
+
+            <hr />
+
+            <p><strong>🏷️ Type :</strong> {{ event.typeEvenement }}</p>
+            <p><strong>📋 Planning :</strong> {{ event.planningNom || '-' }}</p>
+            <p><strong>📝 Description :</strong> {{ event.description }}</p>
+
+            <pre>{{ detailsPretty }}</pre>
+        </div>
+
+        <footer>
+            <button type="button" class="btn" (click)="close.emit()">Fermer</button>
+        </footer>
+    </div>
+</div>

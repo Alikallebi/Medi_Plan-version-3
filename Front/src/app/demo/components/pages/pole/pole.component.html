@@ -1,0 +1,623 @@
+<div class="equipe-container">
+  <p-toast position="top-right"></p-toast>
+  <p-confirmDialog></p-confirmDialog>
+
+  <!-- EN-TÊTE SPECTACULAIRE -->
+  <div class="page-header">
+    <div class="header-content">
+      <div class="title-section">
+        <div class="title-icon">
+          <i class="pi pi-users medical-icon"></i>
+          <span class="icon-glow"></span>
+        </div>
+        <div class="title-text">
+          <h1>Gestion des équipes</h1>
+          <p class="subtitle">Organisez et gérez les équipes médicales de votre établissement</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="stats-badge">
+          <i class="pi pi-users"></i>
+          <span>{{ equipes.length }} équipes</span>
+        </div>
+        <button class="add-button" (click)="openNew()">
+          <i class="pi pi-plus"></i>
+          <span>Nouvelle équipe</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- STATISTIQUES RAPIDES -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-jour">
+          <i class="pi pi-sun"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getEquipesByType('JOUR').length }}</span>
+          <span class="stat-label">Équipes de jour</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-nuit">
+          <i class="pi pi-moon"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getEquipesByType('NUIT').length }}</span>
+          <span class="stat-label">Équipes de nuit</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-mixte">
+          <i class="pi pi-sync"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getEquipesByType('MIXTE').length }}</span>
+          <span class="stat-label">Équipes mixtes</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-garde">
+          <i class="pi pi-clock"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getEquipesByType('GARDE').length }}</span>
+          <span class="stat-label">Équipes de garde</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTRES AVANCÉS -->
+  <div class="filters-section">
+    <div class="search-wrapper">
+      <i class="pi pi-search"></i>
+      <input 
+        pInputText 
+        #globalFilter
+        (input)="onGlobalSearch($any($event.target).value)"
+        placeholder="Rechercher une équipe par nom, code, service..."
+        class="search-input">
+    </div>
+
+    <div class="filter-chips">
+      <button class="filter-chip" [class.active]="filterType === 'all'" (click)="filterByType('all')">
+        <i class="pi pi-th-large"></i>
+        Toutes
+      </button>
+      <button class="filter-chip jour-chip" [class.active]="filterType === 'JOUR'" (click)="filterByType('JOUR')">
+        <i class="pi pi-sun"></i>
+        Jour
+      </button>
+      <button class="filter-chip nuit-chip" [class.active]="filterType === 'NUIT'" (click)="filterByType('NUIT')">
+        <i class="pi pi-moon"></i>
+        Nuit
+      </button>
+      <button class="filter-chip mixte-chip" [class.active]="filterType === 'MIXTE'" (click)="filterByType('MIXTE')">
+        <i class="pi pi-sync"></i>
+        Mixte
+      </button>
+      <button class="filter-chip garde-chip" [class.active]="filterType === 'GARDE'" (click)="filterByType('GARDE')">
+        <i class="pi pi-clock"></i>
+        Garde
+      </button>
+    </div>
+
+    <div class="view-options">
+      <button class="view-btn" [class.active]="viewMode === 'grid'" (click)="toggleViewMode('grid')">
+        <i class="pi pi-th-large"></i>
+      </button>
+      <button class="view-btn" [class.active]="viewMode === 'list'" (click)="toggleViewMode('list')">
+        <i class="pi pi-list"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- VUE TABLEAU -->
+  <div class="table-wrapper" *ngIf="viewMode === 'list'">
+    <p-table 
+      #dt
+      [value]="filteredEquipes"
+      [rows]="10"
+      [paginator]="true"
+      [loading]="loading"
+      responsiveLayout="scroll"
+      styleClass="modern-table"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Affichage {first} à {last} sur {totalRecords} équipes"
+      [rowsPerPageOptions]="[10, 25, 50]">
+
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Équipe</th>
+          <th>Code</th>
+          <th>Service</th>
+          <th>Type</th>
+          <th>Chef d'équipe</th>
+          <th>Statut</th>
+          <th class="actions-header">Actions</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-equipe>
+        <tr class="table-row">
+          <td>
+            <div class="equipe-name">
+              <div class="name-icon" [style.background]="getEquipeColor(equipe)">
+                <i class="pi pi-users"></i>
+              </div>
+              <div class="name-details">
+                <span class="name">{{ equipe.nom }}</span>
+                <span class="composition" *ngIf="equipe.compositionSouhaitee">
+                  {{ getCompositionText(equipe) }}
+                </span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="code-badge" [style.background]="equipe.couleur || '#f59e0b' + '20'" [style.color]="equipe.couleur || '#f59e0b'">
+              {{ equipe.code }}
+            </span>
+          </td>
+          <td>
+            <div class="service-info">
+              <i class="pi pi-building"></i>
+              <span>{{ equipe.service?.nom || '-' }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="type-badge" [class]="getTypeClass(equipe.typeEquipe)">
+              <i [class]="getTypeIcon(equipe.typeEquipe)"></i>
+              <span>{{ equipe.typeEquipe || '-' }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="chef-info" *ngIf="equipe.chefEquipe; else noChef">
+              <span class="chef-avatar">{{ getChefInitials(equipe.chefEquipe) }}</span>
+              <span class="chef-name">{{ getChefName(equipe.chefEquipe) }}</span>
+            </div>
+            <ng-template #noChef>
+              <span class="text-muted">-</span>
+            </ng-template>
+          </td>
+          <td>
+            <div class="status-badge" [class.active]="equipe.statut === StatutActif.ACTIF" [class.inactive]="equipe.statut !== StatutActif.ACTIF">
+              <span class="status-dot"></span>
+              <span>{{ equipe.statut || 'Actif' }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="action-btn edit" (click)="editEquipe(equipe)" pTooltip="Modifier" tooltipPosition="top">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="action-btn delete" (click)="deleteEquipe(equipe)" pTooltip="Supprimer" tooltipPosition="top">
+                <i class="pi pi-trash"></i>
+              </button>
+              <button class="action-btn members" (click)="manageMembers(equipe)" pTooltip="Gérer les membres" tooltipPosition="top">
+                <i class="pi pi-users"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="empty-message">
+            <div class="empty-state">
+              <i class="pi pi-users"></i>
+              <h3>Aucune équipe trouvée</h3>
+              <p>Commencez par créer votre première équipe médicale</p>
+              <button class="empty-add-btn" (click)="openNew()">
+                <i class="pi pi-plus"></i>
+                Créer une équipe
+              </button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+
+  <!-- VUE GRILLE -->
+  <div class="grid-view" *ngIf="viewMode === 'grid' && filteredEquipes.length > 0">
+    <div class="cards-grid">
+      <div class="equipe-card" *ngFor="let equipe of filteredEquipes" 
+           [class.inactive]="equipe.statut !== StatutActif.ACTIF"
+           (click)="editEquipe(equipe)">
+        <div class="card-header" [style.background]="getCardGradient(equipe)">
+          <div class="card-icon">
+            <i class="pi pi-users"></i>
+          </div>
+          <div class="card-type" [class]="getTypeClass(equipe.typeEquipe)">
+            <i [class]="getTypeIcon(equipe.typeEquipe)"></i>
+            <span>{{ equipe.typeEquipe }}</span>
+          </div>
+          <div class="card-actions" (click)="$event.stopPropagation()">
+            <button class="card-action-btn edit" (click)="editEquipe(equipe)">
+              <i class="pi pi-pencil"></i>
+            </button>
+            <button class="card-action-btn delete" (click)="deleteEquipe(equipe)">
+              <i class="pi pi-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <h3>{{ equipe.nom }}</h3>
+          <div class="card-code" [style.background]="equipe.couleur || '#f59e0b' + '20'" [style.color]="equipe.couleur || '#f59e0b'">
+            {{ equipe.code }}
+          </div>
+          <div class="card-service">
+            <i class="pi pi-building"></i>
+            <span>{{ equipe.service?.nom || 'Service non assigné' }}</span>
+          </div>
+          <div class="card-chef" *ngIf="equipe.chefEquipe">
+            <i class="pi pi-user"></i>
+            <span>Chef: {{ getChefName(equipe.chefEquipe) }}</span>
+          </div>
+          <div class="card-composition" *ngIf="equipe.compositionSouhaitee">
+            <div class="comp-item" *ngIf="equipe.compositionSouhaitee.medecins">
+              <span class="comp-label">Médecins:</span>
+              <span class="comp-value">{{ equipe.compositionSouhaitee.medecins }}</span>
+            </div>
+            <div class="comp-item" *ngIf="equipe.compositionSouhaitee.infirmiers">
+              <span class="comp-label">Infirmiers:</span>
+              <span class="comp-value">{{ equipe.compositionSouhaitee.infirmiers }}</span>
+            </div>
+            <div class="comp-item" *ngIf="equipe.compositionSouhaitee.autres">
+              <span class="comp-label">Autres:</span>
+              <span class="comp-value">{{ equipe.compositionSouhaitee.autres }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-stat">
+            <i class="pi pi-users"></i>
+            <span>{{ getMembresCount(equipe) }} membres</span>
+          </div>
+          <div class="card-badge" [class.active]="equipe.statut === StatutActif.ACTIF">
+            {{ equipe.statut || 'Actif' }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING STATE -->
+  <div class="loading-state" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Chargement des équipes...</p>
+  </div>
+</div>
+
+<!-- MODAL DIALOG SPECTACULAIRE -->
+<p-dialog 
+  [(visible)]="equipeDialog"
+  [style]="{width: '1000px'}"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="equipe-dialog">
+
+  <ng-template pTemplate="header">
+    <div class="dialog-header">
+      <div class="dialog-icon" [style.background]="equipe.couleur || '#f59e0b'">
+        <i class="pi" [ngClass]="equipe.id ? 'pi-pencil' : 'pi-plus'"></i>
+      </div>
+      <div class="dialog-title">
+        <h2>{{ equipe.id ? 'Modifier' : 'Nouvelle' }} équipe</h2>
+        <p>{{ equipe.id ? 'Modifiez les informations de l\'équipe' : 'Créez une nouvelle équipe médicale' }}</p>
+      </div>
+    </div>
+  </ng-template>
+
+  <div class="dialog-content">
+    <!-- PROGRESS BAR -->
+    <div class="form-progress">
+      <div class="progress-step" [class.completed]="identiteSectionCompleted" [class.active]="!identiteSectionCollapsed">
+        <div class="step-indicator">1</div>
+        <span class="step-label">Identité</span>
+      </div>
+      <div class="progress-line" [class.completed]="responsablesSectionCompleted"></div>
+      <div class="progress-step" [class.completed]="responsablesSectionCompleted" [class.active]="!responsablesSectionCollapsed">
+        <div class="step-indicator">2</div>
+        <span class="step-label">Responsables</span>
+      </div>
+      <div class="progress-line" [class.completed]="compositionSectionCompleted"></div>
+      <div class="progress-step" [class.completed]="compositionSectionCompleted" [class.active]="!compositionSectionCollapsed">
+        <div class="step-indicator">3</div>
+        <span class="step-label">Composition</span>
+      </div>
+      <div class="progress-line" [class.completed]="horairesSectionCompleted"></div>
+      <div class="progress-step" [class.completed]="horairesSectionCompleted" [class.active]="!horairesSectionCollapsed">
+        <div class="step-indicator">4</div>
+        <span class="step-label">Horaires</span>
+      </div>
+    </div>
+
+    <!-- PANELS PLIABLES AMÉLIORÉS -->
+    <div class="panels-container">
+      <!-- PANEL 1: IDENTITÉ -->
+      <div class="modern-panel" [class.expanded]="!identiteSectionCollapsed">
+        <div class="panel-header" (click)="identiteSectionCollapsed = !identiteSectionCollapsed">
+          <div class="header-left">
+            <div class="header-icon header-icon-identite">
+              <i class="pi pi-tag"></i>
+            </div>
+            <div>
+              <h3>1. Identité de l'équipe</h3>
+              <p class="header-subtitle">Informations de base et rattachement</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="required-badge" *ngIf="!identiteSectionCollapsed">
+              <span class="required-dot"></span>
+              Champs obligatoires
+            </div>
+            <i class="pi" [ngClass]="identiteSectionCollapsed ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+          </div>
+        </div>
+        <div class="panel-content" *ngIf="!identiteSectionCollapsed">
+          <div class="form-grid">
+            <div class="form-field" [class.has-error]="submitted && !equipe.nom">
+              <label>
+                <i class="pi pi-tag"></i>
+                Nom de l'équipe <span class="required">*</span>
+              </label>
+              <input pInputText [(ngModel)]="equipe.nom" placeholder="ex: Équipe de réanimation" class="modern-input">
+              <div class="error-message" *ngIf="submitted && !equipe.nom">
+                <i class="pi pi-exclamation-circle"></i>
+                <span>Le nom est requis</span>
+              </div>
+            </div>
+
+            <div class="form-field" [class.has-error]="submitted && !equipe.code">
+              <label>
+                <i class="pi pi-qrcode"></i>
+                Code <span class="required">*</span>
+              </label>
+              <input pInputText [(ngModel)]="equipe.code" placeholder="ex: REA-01" class="modern-input">
+              <div class="error-message" *ngIf="submitted && !equipe.code">
+                <i class="pi pi-exclamation-circle"></i>
+                <span>Le code est requis</span>
+              </div>
+            </div>
+
+            <div class="form-field" [class.has-error]="submitted && !equipe.service">
+              <label>
+                <i class="pi pi-building"></i>
+                Service de rattachement <span class="required">*</span>
+              </label>
+              <p-dropdown 
+                [(ngModel)]="equipe.service" 
+                [options]="services" 
+                optionLabel="label" 
+                placeholder="Sélectionner un service"
+                (onChange)="onServiceSelectionChange()"
+                [filter]="true"
+                styleClass="modern-dropdown">
+              </p-dropdown>
+            </div>
+
+            <div class="form-field">
+              <label>
+                <i class="pi pi-palette"></i>
+                Couleur d'identification
+              </label>
+              <div class="color-picker-wrapper">
+                <input type="color" [(ngModel)]="equipe.couleur" class="color-input">
+                <span class="color-value">{{ equipe.couleur || '#f59e0b' }}</span>
+              </div>
+            </div>
+
+            <div class="form-field full-width">
+              <label>
+                <i class="pi pi-sitemap"></i>
+                Type d'équipe <span class="required">*</span>
+              </label>
+              <div class="type-selector">
+                <button class="type-option" *ngFor="let type of typesEquipe" 
+                        [class.selected]="equipe.typeEquipe === type.value"
+                        [style.border-color]="equipe.typeEquipe === type.value ? getTypeColor(type.value) : 'transparent'"
+                        (click)="equipe.typeEquipe = type.value">
+                  <i [class]="getTypeIcon(type.value)" [style.color]="getTypeColor(type.value)"></i>
+                  <span>{{ type.label }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 2: RESPONSABLES -->
+      <div class="modern-panel" [class.expanded]="!responsablesSectionCollapsed">
+        <div class="panel-header" (click)="responsablesSectionCollapsed = !responsablesSectionCollapsed">
+          <div class="header-left">
+            <div class="header-icon header-icon-responsables">
+              <i class="pi pi-user"></i>
+            </div>
+            <div>
+              <h3>2. Responsables</h3>
+              <p class="header-subtitle">Chef d'équipe et superviseurs</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <div class="required-badge" *ngIf="!responsablesSectionCollapsed">
+              <span class="required-dot"></span>
+              Chef requis
+            </div>
+            <i class="pi" [ngClass]="responsablesSectionCollapsed ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+          </div>
+        </div>
+        <div class="panel-content" *ngIf="!responsablesSectionCollapsed">
+          <div class="form-grid">
+            <div class="form-field full-width" [class.has-error]="submitted && !equipe.chefEquipe">
+              <label>
+                <i class="pi pi-star"></i>
+                Chef d'équipe <span class="required">*</span>
+              </label>
+              <p-dropdown 
+                [(ngModel)]="equipe.chefEquipe" 
+                [options]="responsables" 
+                optionLabel="label" 
+                placeholder="Sélectionner le chef d'équipe"
+                [filter]="true"
+                styleClass="modern-dropdown">
+                <ng-template pTemplate="selectedItem" let-item>
+                  <div class="selected-chef" *ngIf="item">
+                    <span class="chef-avatar">{{ getInitialsFromName(item.label) }}</span>
+                    <span>{{ item.label }}</span>
+                  </div>
+                </ng-template>
+                <ng-template pTemplate="item" let-item>
+                  <div class="chef-option">
+                    <span class="chef-avatar">{{ getInitialsFromName(item.label) }}</span>
+                    <span>{{ item.label }}</span>
+                  </div>
+                </ng-template>
+              </p-dropdown>
+              <div class="error-message" *ngIf="submitted && !equipe.chefEquipe">
+                <i class="pi pi-exclamation-circle"></i>
+                <span>Le chef d'équipe est requis</span>
+              </div>
+            </div>
+
+            <div class="form-field full-width">
+              <label>
+                <i class="pi pi-users"></i>
+                Superviseurs (optionnel)
+              </label>
+              <p-multiSelect 
+                [(ngModel)]="equipe.superviseurs" 
+                [options]="responsables" 
+                optionLabel="label"
+                placeholder="Sélectionner des superviseurs"
+                styleClass="modern-multiselect">
+              </p-multiSelect>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 3: COMPOSITION -->
+      <div class="modern-panel" [class.expanded]="!compositionSectionCollapsed">
+        <div class="panel-header" (click)="compositionSectionCollapsed = !compositionSectionCollapsed">
+          <div class="header-left">
+            <div class="header-icon header-icon-composition">
+              <i class="pi pi-chart-pie"></i>
+            </div>
+            <div>
+              <h3>3. Composition souhaitée</h3>
+              <p class="header-subtitle">Répartition des effectifs</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <i class="pi" [ngClass]="compositionSectionCollapsed ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+          </div>
+        </div>
+        <div class="panel-content" *ngIf="!compositionSectionCollapsed">
+          <div class="composition-grid">
+            <div class="composition-item">
+              <label>Médecins</label>
+              <p-inputNumber [(ngModel)]="compositionSouhaitee.medecins" [min]="0" [max]="50"></p-inputNumber>
+            </div>
+            <div class="composition-item">
+              <label>Infirmiers</label>
+              <p-inputNumber [(ngModel)]="compositionSouhaitee.infirmiers" [min]="0" [max]="50"></p-inputNumber>
+            </div>
+            <div class="composition-item">
+              <label>Autres</label>
+              <p-inputNumber [(ngModel)]="compositionSouhaitee.autres" [min]="0" [max]="50"></p-inputNumber>
+            </div>
+            <div class="composition-total">
+              <span>Total:</span>
+              <span class="total-value">{{ getTotalComposition() }} personnels</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 4: HORAIRES -->
+      <div class="modern-panel" [class.expanded]="!horairesSectionCollapsed">
+        <div class="panel-header" (click)="horairesSectionCollapsed = !horairesSectionCollapsed">
+          <div class="header-left">
+            <div class="header-icon header-icon-horaires">
+              <i class="pi pi-clock"></i>
+            </div>
+            <div>
+              <h3>4. Horaires & Capacité</h3>
+              <p class="header-subtitle">Planification des horaires</p>
+            </div>
+          </div>
+          <div class="header-right">
+            <i class="pi" [ngClass]="horairesSectionCollapsed ? 'pi-chevron-down' : 'pi-chevron-up'"></i>
+          </div>
+        </div>
+        <div class="panel-content" *ngIf="!horairesSectionCollapsed">
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Type d'horaires</label>
+              <p-dropdown 
+                [(ngModel)]="equipe.typeHoraires" 
+                [options]="typesHoraires" 
+                placeholder="Choisir le type"
+                styleClass="modern-dropdown">
+              </p-dropdown>
+            </div>
+
+            <div class="form-field">
+              <label>Capacité maximale</label>
+              <p-inputNumber [(ngModel)]="equipe.capaciteMaximale" [min]="1" [max]="100"></p-inputNumber>
+            </div>
+
+            <div class="form-field full-width">
+              <label>Postes assurés</label>
+              <p-multiSelect 
+                [(ngModel)]="equipe.postesAssures" 
+                [options]="postesDisponibles" 
+                placeholder="Sélectionner les postes"
+                styleClass="modern-multiselect">
+              </p-multiSelect>
+            </div>
+
+            <div class="form-field full-width">
+              <label>Compétences spécifiques</label>
+              <p-multiSelect 
+                [(ngModel)]="equipe.competencesSpecifiques" 
+                [options]="competencesDisponibles" 
+                placeholder="Sélectionner les compétences"
+                styleClass="modern-multiselect">
+              </p-multiSelect>
+            </div>
+
+            <div class="switch-field">
+              <label>Équipe volante</label>
+              <p-inputSwitch [(ngModel)]="equipe.equipeVolante"></p-inputSwitch>
+              <span class="switch-hint">Cette équipe peut être affectée à différents services</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button class="cancel-btn" (click)="hideDialog()">
+        <i class="pi pi-times"></i>
+        Annuler
+      </button>
+      <button class="save-btn" (click)="saveEquipe()">
+        <i class="pi" [ngClass]="equipe.id ? 'pi-check' : 'pi-save'"></i>
+        {{ equipe.id ? 'Mettre à jour' : 'Créer l\'équipe' }}
+      </button>
+      <button class="save-members-btn" (click)="saveAndAddMembers()" *ngIf="!equipe.id">
+        <i class="pi pi-users"></i>
+        Créer et ajouter des membres
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>

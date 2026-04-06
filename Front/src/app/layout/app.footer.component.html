@@ -1,0 +1,61 @@
+<footer class="med-footer">
+    <div class="footer-content">
+        <div class="footer-left">
+            <div class="footer-logo">
+                <img src="assets/layout/images/logo.png" alt="MediPlan" class="footer-logo-img">
+                <span class="footer-logo-text">MediPlan</span>
+            </div>
+            <span class="footer-copyright">
+                © {{ currentYear }} Tous droits réservés
+            </span>
+        </div>
+
+        <div class="footer-center">
+            <div class="footer-info">
+                <i class="pi pi-heart-fill heart-icon"></i>
+                <span class="footer-text">Développé avec passion par</span>
+                <span class="footer-author">Ali Kallebi</span>
+            </div>
+        </div>
+
+        <div class="footer-right">
+            <div class="footer-links">
+                <a href="#" class="footer-link" (click)="goToSupport($event)">
+                    <i class="pi pi-question-circle"></i>
+                    <span>Aide</span>
+                </a>
+                <a href="#" class="footer-link" (click)="goToLegal($event)">
+                    <i class="pi pi-file"></i>
+                    <span>Mentions légales</span>
+                </a>
+                <a href="#" class="footer-link" (click)="goToContact($event)">
+                    <i class="pi pi-envelope"></i>
+                    <span>Contact</span>
+                </a>
+            </div>
+            
+            <div class="footer-social" *ngIf="showSocial">
+                <a href="#" class="social-link" aria-label="LinkedIn">
+                    <i class="pi pi-linkedin"></i>
+                </a>
+                <a href="#" class="social-link" aria-label="GitHub">
+                    <i class="pi pi-github"></i>
+                </a>
+                <a href="#" class="social-link" aria-label="Twitter">
+                    <i class="pi pi-twitter"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version mobile simplifiée -->
+    <div class="footer-mobile">
+        <div class="mobile-info">
+            <i class="pi pi-heart-fill heart-icon"></i>
+            <span>Développé par <strong>Ali Kallebi</strong></span>
+        </div>
+        <div class="mobile-copyright">
+            © {{ currentYear }} MediPlan
+        </div>
+    </div>
+</footer>

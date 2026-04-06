@@ -1,0 +1,344 @@
+<div class="user-detail-container">
+  <div class="header-nav">
+    <div class="breadcrumb">
+      <span><i class="pi pi-shield"></i> Administration</span> <span>/</span>
+      <a routerLink="/pages/utilisateurs">Utilisateurs</a> <span>/</span>
+      <span>{{ user.titre }} {{ user.prenom }} {{ user.nom }}</span>
+    </div>
+    <div class="header-actions">
+      <button pButton type="button" class="p-button-outlined" (click)="goBack()">
+        <i class="pi pi-arrow-left"></i> Précédent
+      </button>
+      <button pButton type="button" class="p-button-primary" (click)="editUser()">
+        <i class="pi pi-pencil"></i> Modifier
+      </button>
+    </div>
+  </div>
+
+  <div class="content-grid">
+    <div class="left-column">
+      <div class="card navigation-card">
+        <h3>Navigation</h3>
+        <div class="nav-item" (click)="goToUsersList()">
+          <i class="pi pi-list"></i>
+          <span>Gestion des utilisateurs</span>
+        </div>
+        <div class="nav-item active" (click)="goToMyProfile()">
+          <i class="pi pi-user-edit"></i>
+          <span>Ma fiche utilisateur</span>
+        </div>
+      </div>
+
+      <div class="card user-card">
+        <div class="photo-section">
+          <div class="photo-placeholder">
+            <img *ngIf="user.photo" [src]="user.photo" alt="Photo de profil" class="profile-photo" />
+            <i *ngIf="!user.photo" class="pi pi-user"></i>
+          </div>
+          <button type="button" class="photo-edit-btn" (click)="openProfilePhotoPicker(profilePhotoInput)">
+            <i class="pi pi-camera"></i>
+          </button>
+          <input
+            #profilePhotoInput
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            class="hidden-photo-input"
+            (change)="onProfilePhotoSelected($event)"
+          />
+        </div>
+        <h2>{{ user.titre }} {{ user.prenom }} {{ user.nom }}</h2>
+        <p class="specialite">{{ user.specialite }}</p>
+        <div class="status-badge" [style.backgroundColor]="getStatusColor()">
+          <i class="pi pi-circle-fill"></i> {{ getStatusLabel() }}
+        </div>
+        <p class="matricule">Matricule: {{ user.matricule }}</p>
+      </div>
+
+      <div class="card contact-info">
+        <div class="info-item"><i class="pi pi-envelope"></i> <span><small>Email</small> <a href="mailto:{{ user.email }}">{{ user.email }}</a></span></div>
+        <div class="info-item"><i class="pi pi-phone"></i> <span><small>Tél.</small> {{ user.telephone }}</span></div>
+        <div class="info-item"><i class="pi pi-mobile"></i> <span><small>Mobile</small> {{ user.mobile }}</span></div>
+        <div class="info-item"><i class="pi pi-map-marker"></i> <span><small>Service</small> {{ user.service }}</span></div>
+      </div>
+
+    </div>
+
+    <div class="center-column">
+      <div class="tab-menu">
+        <button *ngFor="let i of [0,1,2,3,4]" [class.active]="activeTab === i" (click)="setActiveTab(i)" class="tab-btn">
+          <span *ngIf="i === 0"><i class="pi pi-user-edit"></i> Informations</span>
+          <span *ngIf="i === 1"><i class="pi pi-briefcase"></i> Affectations</span>
+          <span *ngIf="i === 2"><i class="pi pi-shield"></i> Rôles</span>
+          <span *ngIf="i === 3"><i class="pi pi-calendar"></i> Plannings</span>
+          <span *ngIf="i === 4"><i class="pi pi-history"></i> Historique</span>
+        </button>
+      </div>
+
+      <div *ngIf="activeTab === 0" class="card tab-content">
+        <div class="sub-tabs">
+          <button [class.active]="activeSubTab === 0" (click)="setActiveSubTab(0)">Personnelles</button>
+          <button [class.active]="activeSubTab === 1" (click)="setActiveSubTab(1)">Professionnelles</button>
+        </div>
+        <div *ngIf="activeSubTab === 0" class="info-grid">
+          <div class="info-row"><label>Nom</label> <p>{{ user.nom }}</p></div>
+          <div class="info-row"><label>Prénom</label> <p>{{ user.prenom }}</p></div>
+          <div class="info-row"><label>Date de naissance</label> <p>{{ getDateNaissanceDisplay() }}</p></div>
+          <div class="info-row"><label>Email personnel</label> <p><a href="mailto:{{ user.emailPersonnel }}">{{ user.emailPersonnel }}</a></p></div>
+          <div class="info-row"><label>Téléphone</label> <p>{{ user.mobile }}</p></div>
+          <div class="info-row"><label>Adresse</label> <p>{{ user.adresse }}</p></div>
+        </div>
+        <div *ngIf="activeSubTab === 1" class="info-grid">
+          <div class="info-row"><label>Spécialité</label> <p>{{ user.specialite }}</p></div>
+          <div class="info-row"><label>Diplôme</label> <p>{{ user.diplome }}</p></div>
+          <div class="info-row"><label>Université</label> <p>{{ user.universite }}</p></div>
+          <div class="info-row"><label>Date embauche</label> <p>{{ formatDate(user.dateEmbauche) }}</p></div>
+          <div class="info-row"><label>Compétences</label> <p>{{ user.competences.join(', ') }}</p></div>
+          <div class="info-row"><label>Langues</label> <p>{{ user.langues.join(', ') }}</p></div>
+        </div>
+      </div>
+
+      <div *ngIf="activeTab === 1" class="card tab-content">
+        <h3>Affectations actuelles</h3>
+        <div class="affectations-list">
+          <div *ngFor="let aff of affectations" class="affectation-card">
+            <div class="aff-header">
+              <h4>{{ aff.service }} - {{ aff.equipe }}</h4>
+            </div>
+            <div class="aff-info">
+              <p><strong>Rôle:</strong> {{ aff.role }}</p>
+              <p><strong>Période:</strong> De {{ formatDate(aff.dateDebut) }} {{ aff.dateFin ? 'au ' + formatDate(aff.dateFin) : 'à aujourd\'hui' }}</p>
+              <p><strong>Taux:</strong> {{ aff.taux }}%</p>
+            </div>
+          </div>
+        </div>
+        <button pButton type="button" class="p-button-primary add-affectation-btn" (click)="addAffectation()">
+          <i class="pi pi-plus"></i> Ajouter une affectation
+        </button>
+      </div>
+
+      <div *ngIf="activeTab === 2" class="card tab-content">
+        <h3>Rôles</h3>
+        <div class="roles-table">
+          <div class="table-header"><span>Rôle</span> <span>Depuis</span> <span>Par</span></div>
+          <div *ngFor="let role of roles" class="table-row">
+            <span>{{ role.name }}</span>
+            <span>{{ formatDate(role.since) }}</span>
+            <span>{{ role.by }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="activeTab === 3" class="card tab-content">
+
+        <!-- Header with month navigation -->
+        <div class="planning-header">
+          <h3>Planning du mois</h3>
+          <div class="month-nav">
+            <button class="month-nav-btn" (click)="prevMonth()" title="Mois précédent">
+              <i class="pi pi-chevron-left"></i>
+            </button>
+            <span class="month-label">{{ currentMonthLabel }}</span>
+            <button class="month-nav-btn" (click)="nextMonth()" title="Mois suivant">
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats pills -->
+        <div class="planning-stats-row">
+          <div class="stat-pill default">
+            <i class="pi pi-calendar"></i>
+            <span>{{ filteredPlannings.length }} entrée{{ filteredPlannings.length > 1 ? 's' : '' }}</span>
+          </div>
+          <div class="stat-pill night" *ngIf="getNightShiftsCount() > 0">
+            <i class="pi pi-moon"></i>
+            <span>{{ getNightShiftsCount() }} nuit{{ getNightShiftsCount() > 1 ? 's' : '' }}</span>
+          </div>
+          <div class="stat-pill weekend" *ngIf="getWeekendShiftsCount() > 0">
+            <i class="pi pi-sun"></i>
+            <span>{{ getWeekendShiftsCount() }} week-end{{ getWeekendShiftsCount() > 1 ? 's' : '' }}</span>
+          </div>
+          <div class="stat-pill conge" *ngIf="getCongesCount() > 0">
+            <i class="pi pi-umbrella"></i>
+            <span>{{ getCongesCount() }} congé{{ getCongesCount() > 1 ? 's' : '' }}</span>
+          </div>
+          <div class="stat-pill repos" *ngIf="getReposCount() > 0">
+            <i class="pi pi-home"></i>
+            <span>{{ getReposCount() }} repos</span>
+          </div>
+        </div>
+
+        <!-- List rows -->
+        <div class="planning-list-modern">
+          <div *ngIf="filteredPlannings.length === 0" class="planning-empty">
+            <i class="pi pi-calendar-times"></i>
+            <p>Aucun planning pour ce mois</p>
+          </div>
+          <div *ngFor="let plan of filteredPlannings"
+               class="planning-list-row"
+               [class.row-conge]="plan.type === 'conge'"
+               [class.row-repos]="plan.type === 'repos'">
+            <div class="plist-color-bar" [style.background]="getShiftColor(plan)"></div>
+            <div class="plist-date">
+              <span class="plist-day-name">{{ formatPlanningDayName(plan.date) }}</span>
+              <span class="plist-day-num">{{ formatPlanningDayNum(plan.date) }}</span>
+              <span class="plist-month">{{ formatPlanningMonth(plan.date) }}</span>
+            </div>
+            <div class="plist-icon-col">
+              <i class="pi" [ngClass]="getShiftIcon(plan)" [style.color]="getShiftColor(plan)"></i>
+            </div>
+            <div class="plist-info">
+              <span class="plist-poste">{{ plan.poste }}</span>
+              <span class="plist-hours" *ngIf="!isAllDay(plan)">
+                <i class="pi pi-clock"></i> {{ plan.heureDebut }} → {{ plan.heureFin }}
+              </span>
+              <span class="plist-hours plist-allday" *ngIf="isAllDay(plan)">
+                <i class="pi" [ngClass]="getShiftIcon(plan)"></i>
+                {{ plan.type === 'conge' ? 'Congé – journée entière' : 'Repos – journée entière' }}
+              </span>
+            </div>
+            <div class="plist-duration" [style.color]="getShiftColor(plan)">
+              {{ getShiftDuration(plan) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="shift-legend">
+          <span class="legend-item"><span class="legend-dot legend-nuit"></span>Nuit</span>
+          <span class="legend-item"><span class="legend-dot legend-matin"></span>Matin</span>
+          <span class="legend-item"><span class="legend-dot legend-apm"></span>Après-midi</span>
+          <span class="legend-item"><span class="legend-dot legend-urgences"></span>Urgences</span>
+          <span class="legend-item"><span class="legend-dot legend-garde"></span>Garde</span>
+          <span class="legend-item"><span class="legend-dot legend-conge"></span>Congé</span>
+          <span class="legend-item"><span class="legend-dot legend-repos"></span>Repos</span>
+        </div>
+
+      </div>
+
+      <div *ngIf="activeTab === 4" class="card tab-content">
+        <h3>Historique</h3>
+        <div class="history-timeline">
+          <div *ngFor="let event of history.slice(0,5)" class="timeline-item">
+            <div class="timeline-marker" [style.backgroundColor]="event.color">
+              <i class="pi" [ngClass]="event.icon"></i>
+            </div>
+            <div class="timeline-content">
+              <h4>{{ event.title }}</h4>
+              <small>{{ formatDateTime(event.date) }}</small>
+              <p *ngIf="event.by">Par: {{ event.by }}</p>
+            </div>
+          </div>
+        </div>
+        <button pButton type="button" class="p-button-primary export-history-btn" (click)="exportHistory()">
+          <i class="pi pi-download"></i> Exporter l'historique
+        </button>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <div class="card actions-card">
+        <h3>Actions rapides</h3>
+        <div class="action-item" (click)="sendEmail()"><i class="pi pi-envelope"></i> <span>Envoyer un email</span></div>
+        <div class="action-item" (click)="viewPlanning()"><i class="pi pi-calendar"></i> <span>Voir planning</span></div>
+        <div class="action-item" (click)="resetPassword()"><i class="pi pi-key"></i> <span>Réinitialiser MDP</span></div>
+        <div class="action-item danger" (click)="deactivateAccount()"><i class="pi pi-ban"></i> <span>Désactiver</span></div>
+      </div>
+
+      <div class="card affectation-summary" *ngIf="getPrimaryAffectation()">
+        <h3>Affectation principale</h3>
+        <div class="summary-item">
+          <p><strong>Service:</strong> {{ getPrimaryAffectation().service }}</p>
+          <p><strong>Équipe:</strong> {{ getPrimaryAffectation().equipe }}</p>
+          <p><strong>Rôle:</strong> {{ getPrimaryAffectation().role }}</p>
+          <p><strong>Depuis:</strong> {{ formatDate(getPrimaryAffectation().dateDebut) }}</p>
+        </div>
+      </div>
+
+      <div class="card equity">
+        <h3>Informations</h3>
+        <div class="indicator">
+          <label>Ancienneté</label>
+          <p>{{ getAnciennetDisplay() }}</p>
+        </div>
+        <div class="indicator">
+          <label>Dernière connexion</label>
+          <p>{{ formatDateTime(user.derniereConnexion) }}</p>
+        </div>
+        <div class="indicator">
+          <label>Plannings</label>
+          <p>{{ user.planningsAVenir }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modales -->
+  <p-toast position="top-right"></p-toast>
+
+  <p-dialog [(visible)]="showEditModal" header="Modifier utilisateur" [modal]="true" [style]="{ width: '90vw', maxWidth: '900px' }">
+    <p>Fonction de modification à implémenter</p>
+    <ng-template pTemplate="footer">
+      <button pButton type="button" label="Annuler" (click)="closeEditModal()" class="p-button-text"></button>
+      <button pButton type="button" label="Enregistrer" (click)="closeEditModal()" class="p-button-primary"></button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog [(visible)]="showAddAffectationModal" header="Ajouter une affectation" [modal]="true" [style]="{ width: '90vw', maxWidth: '600px' }">
+    <div class="modal-content">
+      <div class="form-group">
+        <label>Service *</label>
+        <p-dropdown
+          [(ngModel)]="newAffectation.service"
+          [options]="servicesCatalog"
+          optionLabel="nom"
+          placeholder="Sélectionner un service"
+          appendTo="body"></p-dropdown>
+      </div>
+      <div class="form-group">
+        <label>Équipe *</label>
+        <p-dropdown
+          [(ngModel)]="newAffectation.equipe"
+          [options]="equipesCatalog"
+          optionLabel="nom"
+          placeholder="Sélectionner une équipe"
+          appendTo="body"></p-dropdown>
+      </div>
+      <div class="form-group">
+        <label>Date début *</label>
+        <p-calendar [(ngModel)]="newAffectation.dateDebut" dateFormat="dd/mm/yy" appendTo="body"></p-calendar>
+      </div>
+      <div class="form-group">
+        <label>Taux (%)</label>
+        <p-inputNumber [(ngModel)]="newAffectation.taux" [min]="0" [max]="100"></p-inputNumber>
+      </div>
+    </div>
+    <ng-template pTemplate="footer">
+      <button pButton type="button" label="Annuler" (click)="closeAddAffectationModal()" class="p-button-text"></button>
+      <button pButton type="button" label="Ajouter" (click)="saveAffectation()" class="p-button-primary"></button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog [(visible)]="showResetPasswordModal" header="Réinitialiser mot de passe" [modal]="true" [style]="{ width: '90vw', maxWidth: '500px' }">
+    <p-radioButton name="opt1" value="sendEmail" [(ngModel)]="resetPasswordOption" label="Envoyer un email"></p-radioButton>
+    <p-radioButton name="opt2" value="generateTemp" [(ngModel)]="resetPasswordOption" label="Générer mot de passe temporaire"></p-radioButton>
+    <ng-template pTemplate="footer">
+      <button pButton type="button" label="Annuler" (click)="closeResetPasswordModal()" class="p-button-text"></button>
+      <button pButton type="button" label="Confirmer" (click)="confirmResetPassword()" class="p-button-primary"></button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog [(visible)]="showDeactivateModal" header="Désactiver le compte" [modal]="true" [style]="{ width: '90vw', maxWidth: '500px' }">
+    <div class="modal-content">
+      <label>Raison:</label>
+      <p-dropdown [(ngModel)]="deactivateReason" [options]="deactivateReasons" optionLabel="label" optionValue="value" placeholder="Sélectionner une raison" appendTo="body"></p-dropdown>
+      <div class="warning-box">
+        <i class="pi pi-exclamation-triangle"></i> Cette action ne peut pas être annulée.
+      </div>
+    </div>
+    <ng-template pTemplate="footer">
+      <button pButton type="button" label="Annuler" (click)="closeDeactivateModal()" class="p-button-text"></button>
+      <button pButton type="button" label="Désactiver" (click)="confirmDeactivate()" class="p-button-danger"></button>
+    </ng-template>
+  </p-dialog>
+</div>

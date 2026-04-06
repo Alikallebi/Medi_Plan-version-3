@@ -1,0 +1,65 @@
+<aside class="personnel-panel">
+
+    
+    
+    <header class="panel-header">
+        <div class="panel-header-title">
+            <i class="pi pi-briefcase"></i>
+            <span>Postes de travail</span>
+        </div>
+        <span class="panel-count-badge">{{ filteredPostes.length }}</span>
+    </header>
+
+    <!-- Filtre type -->
+    <div class="poste-filter-strip">
+        <button type="button"
+            *ngFor="let t of posteTypeOptions"
+            [class.active]="posteTypeFilter === t.key"
+            (click)="posteTypeFilter = t.key"
+            [title]="t.label">
+            <span class="type-dot" [class]="t.key"></span>
+            {{ t.label }}
+        </button>
+    </div>
+
+    <!-- Liste des postes draggables -->
+    <div class="postes-list">
+        <article
+            class="poste-card"
+            *ngFor="let poste of filteredPostes"
+            appDragDrop
+            [dragData]="toPosteDragItem(poste)"
+            [class.selected]="isPosteSelected(poste.id)"
+            (click)="togglePosteSelection(poste)"
+            (dragstart)="selectPosteForDrag(poste)"
+            [title]="poste.nom + ' — glisser vers une cellule'">
+            <div class="poste-color-bar" [class]="poste.type"></div>
+            <div class="poste-main">
+                <strong>{{ poste.nom }}</strong>
+                <small class="poste-time">
+                    <i class="pi pi-clock"></i>
+                    {{ isNonWorkingType(poste.type) ? 'Journée entière' : (poste.heureDebut + ' – ' + poste.heureFin) }}
+                </small>
+            </div>
+            <div class="poste-right">
+                <span class="poste-type-badge" [class]="poste.type">{{ poste.type }}</span>
+                <span class="usage-chip">{{ getPosteUsage(poste.id) }}×</span>
+                <span class="grab-icon">⠿</span>
+            </div>
+        </article>
+
+        <p class="postes-empty" *ngIf="filteredPostes.length === 0">
+            <i class="pi pi-inbox"></i> Aucun poste
+        </p>
+    </div>
+
+    <!-- Sélection multiple info -->
+    <div class="selection-hint" *ngIf="selectedCellsCount > 0">
+        <i class="pi pi-check-square"></i>
+        {{ selectedCellsCount }} cellule(s) sélectionnée(s)
+        <button type="button" class="apply-btn" (click)="applyToSelection()" [disabled]="!selectedPosteIdForBulk">
+            Appliquer
+        </button>
+    </div>
+
+</aside>

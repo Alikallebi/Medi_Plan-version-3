@@ -1,0 +1,61 @@
+<section class="audit-table-wrap">
+    <div class="state" *ngIf="loading">Chargement des événements...</div>
+    <div class="state error" *ngIf="!loading && error">{{ error }}</div>
+    <div class="state" *ngIf="!loading && !error && events.length === 0">Aucun événement trouvé. Ajustez les filtres.</div>
+
+    <table *ngIf="!loading && !error && events.length > 0 && !isMobile" class="audit-table" aria-label="Tableau des événements d'audit">
+        <thead>
+            <tr>
+                <th scope="col">Date/Heure</th>
+                <th scope="col">Utilisateur</th>
+                <th scope="col">Action</th>
+                <th scope="col">Planning</th>
+                <th scope="col">Détails</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let event of events; trackBy: trackByEvent">
+                <td>{{ event.date | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ event.utilisateurNom }}</td>
+                <td>
+                    <span class="event-chip" [ngClass]="getEventClass(event.typeEvenement)">
+                        {{ getEventIcon(event.typeEvenement) }} {{ event.typeEvenement }}
+                    </span>
+                </td>
+                <td>{{ event.planningNom || '-' }}</td>
+                <td>
+                    <button
+                        type="button"
+                        class="btn"
+                        [attr.aria-label]="'Voir les détails de l\'événement ' + event.typeEvenement"
+                        (click)="viewDetails.emit(event)">👁️</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div *ngIf="!loading && !error && events.length > 0 && isMobile" class="audit-mobile" aria-label="Liste mobile des événements d'audit">
+        <article *ngFor="let event of events; trackBy: trackByEvent" class="audit-card">
+            <div class="card-header">
+                <span class="date">{{ event.date | date:'short' }}</span>
+                <span class="event-chip" [ngClass]="getEventClass(event.typeEvenement)">
+                    {{ getEventIcon(event.typeEvenement) }} {{ event.typeEvenement }}
+                </span>
+            </div>
+
+            <div class="card-body">
+                <div><strong>Utilisateur:</strong> {{ event.utilisateurNom }}</div>
+                <div><strong>Planning:</strong> {{ event.planningNom || '-' }}</div>
+                <div><strong>Détails:</strong> {{ event.description }}</div>
+            </div>
+
+            <button
+                type="button"
+                class="btn"
+                [attr.aria-label]="'Voir les détails de l\'événement ' + event.typeEvenement"
+                (click)="viewDetails.emit(event)">
+                Voir détails
+            </button>
+        </article>
+    </div>
+</section>

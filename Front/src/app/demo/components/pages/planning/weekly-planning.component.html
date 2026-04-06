@@ -1,0 +1,69 @@
+<section class="weekly-grid-wrapper">
+    <div class="weekly-grid" [style.gridTemplateColumns]="'180px repeat(' + weekDays.length + ', minmax(96px, 1fr))'">
+
+        <!-- Header: Personnel column -->
+        <div class="cell header employee-header">
+            <i class="pi pi-users emp-header-icon"></i>
+            Personnel
+        </div>
+
+        <!-- Header: Day columns -->
+        <div class="cell header day-header" *ngFor="let day of weekDays; let i = index"
+             [class.today-col]="isToday(dayDates[i])">
+            <div class="day-head">
+                <span class="day-name">{{ day }}</span>
+                <span class="day-date">{{ dayDates[i] | date:'dd/MM' }}</span>
+            </div>
+        </div>
+
+        <!-- Data rows -->
+        <ng-container *ngFor="let person of personnel; let rowIndex = index">
+
+            <!-- Employee cell -->
+            <div class="cell employee-cell"
+                 [class.alt-row]="rowIndex % 2 === 1"
+                 [class.row-has-plan]="personHasAnyAssignment(person.id)"
+                 [class.row-no-plan]="!personHasAnyAssignment(person.id)">
+                <div class="emp-avatar" [ngClass]="person.avatar ? '' : getRoleClass(person.role)">
+                    <img *ngIf="person.avatar" [src]="person.avatar" class="emp-avatar-photo"
+                         [alt]="person.prenom + ' ' + person.nom"
+                         [title]="person.prenom + ' ' + person.nom">
+                    <ng-container *ngIf="!person.avatar">{{ person.prenom.charAt(0) }}{{ person.nom.charAt(0) }}</ng-container>
+                </div>
+                <div class="emp-info">
+                    <span class="emp-name">{{ person.prenom }} {{ person.nom }}</span>
+                    <span class="emp-role-badge" [ngClass]="getRoleBadgeClass(person.role)">{{ person.role }}</span>
+                    <small class="emp-spec" *ngIf="person.specialty">{{ person.specialty }}</small>
+                    <span class="plan-status-badge has-plan" *ngIf="personHasAnyAssignment(person.id)"
+                          [title]="getPersonAssignmentCount(person.id) + ' affectation(s) cette semaine'">
+                        ✓ {{ getPersonAssignmentCount(person.id) }} affectation(s)
+                    </span>
+                    <span class="plan-status-badge no-plan" *ngIf="!personHasAnyAssignment(person.id)">
+                        — Non planifié
+                    </span>
+                </div>
+            </div>
+
+            <!-- Planning cells -->
+            <app-planning-cell
+                *ngFor="let day of dayIndexes"
+                [personnel]="person"
+                [dayIndex]="day"
+                [dayDate]="dayDates[day]"
+                [assignment]="getAssignment(person.id, day)"
+                [assignments]="getAssignmentsForCell(person.id, day)"
+                [hasConflict]="hasConflict(person.id, day)"
+                [conflict]="getConflict(person.id, day)"
+                [selected]="selectedCellKeys.has(getCellKey(person.id, day))"
+                [dropValidator]="dropValidator"
+                (dropped)="cellDropped.emit($event)"
+                (clicked)="cellClicked.emit($event)"
+                (contextMenuAction)="cellContextMenu.emit($event)"
+                (selectionStart)="selectionStart.emit($event)"
+                (selectionEnter)="selectionEnter.emit($event)"
+                (selectionEnd)="selectionEnd.emit()">
+            </app-planning-cell>
+
+        </ng-container>
+    </div>
+</section>

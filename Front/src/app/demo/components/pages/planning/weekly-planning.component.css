@@ -1,0 +1,751 @@
+/* ============================================================
+   Weekly Planning Grid — Design Spectaculaire
+   Thème médical MediPlan
+   ============================================================ */
+
+.weekly-grid-wrapper {
+  overflow-x: auto;
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 24px;
+  box-shadow: 0 8px 30px -12px rgba(15, 59, 94, 0.25);
+  position: relative;
+  margin: 8px 0;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: radial-gradient(circle at 20% 30%, rgba(16, 185, 129, 0.05), transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: linear-gradient(180deg, transparent, rgba(16, 185, 129, 0.03));
+    pointer-events: none;
+    z-index: 1;
+  }
+}
+
+.weekly-grid {
+  display: grid;
+  gap: 0;
+  min-width: 900px;
+  font-size: 0.85rem;
+  position: relative;
+  z-index: 2;
+}
+
+/* ===== BASE CELL ===== */
+.cell {
+  border-right: 1px solid rgba(16, 185, 129, 0.12);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.12);
+  transition: all 0.2s ease;
+}
+
+/* ===== HEADER ROW SPECTACULAIRE ===== */
+.cell.header {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+  color: var(--primary, #0f3b5e);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 2px solid rgba(16, 185, 129, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent, #10b981), transparent);
+    opacity: 0.5;
+  }
+}
+
+.employee-header {
+  justify-content: flex-start;
+  padding-left: 20px;
+  font-size: 0.8rem;
+  color: var(--primary, #0f3b5e);
+  background: linear-gradient(145deg, #f1f5f9, #e9eef3);
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent, #10b981), #059669);
+    border-radius: 0 2px 2px 0;
+  }
+  
+  .emp-header-icon {
+    margin-right: 10px;
+    font-size: 1.1rem;
+    color: var(--accent, #10b981);
+    background: rgba(16, 185, 129, 0.15);
+    padding: 0.5rem;
+    border-radius: 12px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: rotate(360deg);
+      background: var(--accent, #10b981);
+      color: white;
+    }
+  }
+}
+
+/* ===== DAY HEADER AMÉLIORÉ ===== */
+.day-header {
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent, #10b981), #059669, var(--accent, #10b981));
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover::before {
+    opacity: 0.8;
+  }
+}
+
+.day-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.day-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--primary, #0f3b5e);
+  text-transform: capitalize;
+  letter-spacing: -0.01em;
+  background: linear-gradient(145deg, var(--primary, #0f3b5e), var(--accent, #10b981));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.day-date {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(145deg, var(--accent, #10b981), #059669);
+  padding: 4px 14px;
+  border-radius: 30px;
+  line-height: 1.4;
+  box-shadow: 0 4px 10px -6px var(--accent, #10b981);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 16px -8px var(--accent, #10b981);
+  }
+}
+
+/* ===== TODAY COLUMN SPECTACULAIRE ===== */
+.today-col {
+  background: linear-gradient(145deg, #eff6ff, #dbeafe) !important;
+  border-bottom: 3px solid #3b82f6 !important;
+  position: relative;
+  
+  &::before {
+    content: 'Aujourd\'hui';
+    position: absolute;
+    top: -8px;
+    right: 10px;
+    background: linear-gradient(145deg, #3b82f6, #2563eb);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 30px;
+    box-shadow: 0 4px 10px -4px #3b82f6;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    z-index: 5;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.15), transparent 70%);
+    pointer-events: none;
+  }
+  
+  .day-name {
+    background: linear-gradient(145deg, #1d4ed8, #3b82f6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .day-date {
+    background: linear-gradient(145deg, #3b82f6, #2563eb);
+    box-shadow: 0 4px 12px -4px #3b82f6;
+  }
+}
+
+/* ===== EMPLOYEE COLUMN AMÉLIORÉE ===== */
+.employee-cell {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  min-height: 56px;
+  transition: all 0.3s ease;
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent, #10b981);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover {
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+    transform: translateX(4px);
+    z-index: 5;
+    
+    &::before {
+      opacity: 1;
+    }
+    
+    .emp-avatar {
+      transform: scale(1.15) rotate(5deg);
+    }
+    
+    .emp-name {
+      color: var(--accent, #10b981);
+    }
+  }
+  
+  &.alt-row {
+    background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+    
+    &:hover {
+      background: linear-gradient(145deg, #ffffff, #f8fafc);
+    }
+  }
+  
+  &.row-has-plan {
+    border-left: 4px solid var(--accent, #10b981) !important;
+    
+    .plan-status-badge.has-plan {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+  }
+  
+  &.row-no-plan {
+    border-left: 4px solid #e2e8f0 !important;
+    opacity: 0.8;
+    
+    .emp-name {
+      color: #94a3b8;
+    }
+  }
+}
+
+/* ===== AVATAR SPECTACULAIRE ===== */
+.emp-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: white;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+  box-shadow: 0 8px 16px -8px currentColor, 0 0 0 2px rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 2px solid transparent;
+  
+  &:hover {
+    border-color: white;
+  }
+}
+
+/* Avatar colors by role améliorés */
+.role-admin { 
+  background: linear-gradient(145deg, #6d28d9, #8b5cf6);
+  box-shadow: 0 8px 16px -8px #6d28d9;
+}
+.role-chef { 
+  background: linear-gradient(145deg, #0369a1, #0ea5e9);
+  box-shadow: 0 8px 16px -8px #0369a1;
+}
+.role-validateur { 
+  background: linear-gradient(145deg, #065f46, #10b981);
+  box-shadow: 0 8px 16px -8px #065f46;
+}
+.role-staff { 
+  background: linear-gradient(145deg, #374151, #6b7280);
+  box-shadow: 0 8px 16px -8px #374151;
+}
+.role-default { 
+  background: linear-gradient(145deg, #64748b, #94a3b8);
+  box-shadow: 0 8px 16px -8px #64748b;
+}
+
+/* ===== EMPLOYEE INFO BLOCK ===== */
+.emp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.emp-name {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--primary, #0f3b5e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+  transition: color 0.3s ease;
+  letter-spacing: -0.01em;
+  
+  &::first-letter {
+    color: var(--accent, #10b981);
+    font-size: 1rem;
+  }
+}
+
+.emp-role-badge {
+  display: inline-block;
+  font-size: 0.56rem;
+  font-weight: 800;
+  padding: 1px 8px;
+  border-radius: 30px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  width: fit-content;
+  line-height: 1.35;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px) scale(1.05);
+  }
+}
+
+/* Badge colors by role améliorés */
+.badge-admin { 
+  background: linear-gradient(145deg, #ede9fe, #ddd6fe);
+  color: #6d28d9;
+  border-color: rgba(109, 40, 217, 0.3);
+}
+.badge-chef { 
+  background: linear-gradient(145deg, #e0f2fe, #bae6fd);
+  color: #0369a1;
+  border-color: rgba(3, 105, 161, 0.3);
+}
+.badge-validateur { 
+  background: linear-gradient(145deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+  border-color: rgba(6, 95, 70, 0.3);
+}
+.badge-staff { 
+  background: linear-gradient(145deg, #f1f5f9, #e2e8f0);
+  color: #475569;
+  border-color: rgba(71, 85, 105, 0.3);
+}
+.badge-default { 
+  background: linear-gradient(145deg, #f1f5f9, #e2e8f0);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.3);
+}
+
+.emp-spec {
+  font-size: 0.6rem;
+  color: var(--text-tertiary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+  font-weight: 500;
+  background: rgba(16, 185, 129, 0.05);
+  padding: 1px 7px;
+  border-radius: 30px;
+  display: inline-block;
+  width: fit-content;
+}
+
+/* ===== PLANNING STATUS INDICATORS ===== */
+.plan-status-badge {
+  display: inline-block;
+  font-size: 0.52rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 30px;
+  letter-spacing: 0.04em;
+  width: fit-content;
+  line-height: 1.2;
+  margin-top: 0;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+  
+  &.has-plan {
+    background: linear-gradient(145deg, #d1fae5, #a7f3d0);
+    color: #065f46;
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 10px -6px #10b981;
+    
+    &::before {
+      content: '✓';
+      margin-right: 4px;
+      font-weight: 900;
+    }
+  }
+  
+  &.no-plan {
+    background: linear-gradient(145deg, #f1f5f9, #e2e8f0);
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.3);
+    
+    &::before {
+      content: '○';
+      margin-right: 4px;
+      font-size: 0.7rem;
+    }
+  }
+}
+
+/* ===== ANIMATIONS D'ENTRÉE ===== */
+.employee-cell {
+  animation: slideInRow 0.3s ease;
+}
+
+.employee-cell:nth-child(1) { animation-delay: 0.02s; }
+.employee-cell:nth-child(2) { animation-delay: 0.04s; }
+.employee-cell:nth-child(3) { animation-delay: 0.06s; }
+.employee-cell:nth-child(4) { animation-delay: 0.08s; }
+.employee-cell:nth-child(5) { animation-delay: 0.1s; }
+.employee-cell:nth-child(6) { animation-delay: 0.12s; }
+.employee-cell:nth-child(7) { animation-delay: 0.14s; }
+.employee-cell:nth-child(8) { animation-delay: 0.16s; }
+.employee-cell:nth-child(9) { animation-delay: 0.18s; }
+.employee-cell:nth-child(10) { animation-delay: 0.2s; }
+.employee-cell:nth-child(11) { animation-delay: 0.22s; }
+.employee-cell:nth-child(12) { animation-delay: 0.24s; }
+.employee-cell:nth-child(13) { animation-delay: 0.26s; }
+.employee-cell:nth-child(14) { animation-delay: 0.28s; }
+.employee-cell:nth-child(15) { animation-delay: 0.3s; }
+.employee-cell:nth-child(16) { animation-delay: 0.32s; }
+.employee-cell:nth-child(17) { animation-delay: 0.34s; }
+.employee-cell:nth-child(18) { animation-delay: 0.36s; }
+.employee-cell:nth-child(19) { animation-delay: 0.38s; }
+.employee-cell:nth-child(20) { animation-delay: 0.4s; }
+.employee-cell:nth-child(21) { animation-delay: 0.42s; }
+.employee-cell:nth-child(22) { animation-delay: 0.44s; }
+.employee-cell:nth-child(23) { animation-delay: 0.46s; }
+.employee-cell:nth-child(24) { animation-delay: 0.48s; }
+.employee-cell:nth-child(25) { animation-delay: 0.5s; }
+.employee-cell:nth-child(26) { animation-delay: 0.52s; }
+.employee-cell:nth-child(27) { animation-delay: 0.54s; }
+.employee-cell:nth-child(28) { animation-delay: 0.56s; }
+.employee-cell:nth-child(29) { animation-delay: 0.58s; }
+.employee-cell:nth-child(30) { animation-delay: 0.6s; }
+
+@keyframes slideInRow {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.day-header {
+  animation: slideInDown 0.4s ease;
+}
+
+.day-header:nth-child(1) { animation-delay: 0.05s; }
+.day-header:nth-child(2) { animation-delay: 0.1s; }
+.day-header:nth-child(3) { animation-delay: 0.15s; }
+.day-header:nth-child(4) { animation-delay: 0.2s; }
+.day-header:nth-child(5) { animation-delay: 0.25s; }
+.day-header:nth-child(6) { animation-delay: 0.3s; }
+.day-header:nth-child(7) { animation-delay: 0.35s; }
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== TOOLTIP PERSONNALISÉ ===== */
+.plan-status-badge[title] {
+  position: relative;
+  
+  &:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary, #0f3b5e);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 20;
+    box-shadow: 0 4px 12px rgba(15, 59, 94, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+    animation: fadeInUp 0.2s ease;
+    margin-bottom: 8px;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ===== SCROLLBAR PERSONNALISÉE ===== */
+.weekly-grid-wrapper::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.weekly-grid-wrapper::-webkit-scrollbar-track {
+  background: rgba(15, 59, 94, 0.05);
+  border-radius: 10px;
+  margin: 4px;
+}
+
+.weekly-grid-wrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, var(--accent, #10b981), #059669);
+  border-radius: 10px;
+  
+  &:hover {
+    background: linear-gradient(90deg, #059669, var(--accent, #10b981));
+  }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1280px) {
+  .weekly-grid {
+    min-width: 800px;
+  }
+  
+  .employee-cell {
+    padding: 5px 8px;
+    min-height: 54px;
+  }
+  
+  .emp-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.68rem;
+  }
+  
+  .emp-name {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .weekly-grid {
+    min-width: 700px;
+  }
+  
+  .employee-header {
+    padding-left: 12px;
+    
+    .emp-header-icon {
+      width: 28px;
+      height: 28px;
+      font-size: 1rem;
+    }
+  }
+  
+  .day-name {
+    font-size: 0.9rem;
+  }
+  
+  .day-date {
+    padding: 3px 10px;
+    font-size: 0.65rem;
+  }
+  
+  .emp-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.64rem;
+    border-radius: 10px;
+  }
+  
+  .emp-role-badge {
+    font-size: 0.52rem;
+    padding: 1px 6px;
+  }
+  
+  .emp-spec {
+    font-size: 0.56rem;
+  }
+  
+  .plan-status-badge {
+    font-size: 0.5rem;
+    padding: 1px 6px;
+    line-height: 1.15;
+  }
+}
+
+@media (max-width: 768px) {
+  .weekly-grid-wrapper {
+    border-radius: 16px;
+  }
+  
+  .cell.header {
+    min-height: 60px;
+  }
+  
+  .employee-cell {
+    padding: 4px 7px;
+    min-height: 50px;
+    gap: 6px;
+  }
+  
+  .emp-info {
+    gap: 2px;
+  }
+  
+  .emp-name {
+    font-size: 0.68rem;
+  }
+  
+  .emp-role-badge {
+    font-size: 0.5rem;
+    padding: 1px 5px;
+  }
+  
+  .plan-status-badge {
+    font-size: 0.46rem;
+    padding: 1px 5px;
+    
+    &.has-plan::before,
+    &.no-plan::before {
+      margin-right: 2px;
+    }
+  }
+}
+
+/* ===== MODE SOMBRE OPTIONNEL ===== */
+@media (prefers-color-scheme: dark) {
+  .weekly-grid-wrapper {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+  
+  .cell.header {
+    background: linear-gradient(145deg, #2d3a4f, #1e293b);
+    color: #e2e8f0;
+  }
+  
+  .employee-cell {
+    background: #1e293b;
+    
+    &.alt-row {
+      background: #2d3a4f;
+    }
+    
+    &:hover {
+      background: #334155;
+    }
+  }
+  
+  .emp-name {
+    color: #e2e8f0;
+  }
+  
+  .emp-spec {
+    color: #94a3b8;
+  }
+  
+  .day-name {
+    background: linear-gradient(145deg, #e2e8f0, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}

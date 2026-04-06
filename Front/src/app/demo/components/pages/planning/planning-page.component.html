@@ -1,0 +1,310 @@
+﻿<div class="planning-page">
+
+        <!-- ══════════════════════════════════════════════
+         BARRE DE CONTRÔLE UNIQUE (service + période + filtres)
+    ══════════════════════════════════════════════ -->
+    <header class="planning-header">
+
+        <!-- Groupe 1 : service -->
+        <div class="header-group service-group">
+            <ng-container *ngIf="canAccessServiceDropdown(); else staticService">
+                <app-service-picker
+                    [services]="availableServices"
+                    [currentServiceId]="currentService?.id || ''"
+                    (serviceChanged)="onServiceChanged($event)">
+                </app-service-picker>
+            </ng-container>
+            <ng-template #staticService>
+                <i class="pi pi-hospital header-icon"></i>
+                <span class="service-static">{{ getConnectedUserService() }}</span>
+            </ng-template>
+        </div>
+
+        <span class="header-sep"></span>
+
+        <!-- Groupe 2 : période -->
+        <div class="header-group period-group">
+            <div class="period-tabs-inline">
+                <button type="button" [class.active]="periodMode === 'semaine'"       (click)="onPeriodModeChanged('semaine')">Sem.</button>
+                <button type="button" [class.active]="periodMode === 'mois'"          (click)="onPeriodModeChanged('mois')">Mois</button>
+                <button type="button" [class.active]="periodMode === 'personnalisee'" (click)="onPeriodModeChanged('personnalisee')">Période</button>
+            </div>
+            <ng-container *ngIf="periodMode === 'semaine'">
+                <input type="date" class="ctrl-input" aria-label="Début de semaine" [(ngModel)]="periodStartInput" />
+            </ng-container>
+            <ng-container *ngIf="periodMode === 'mois'">
+                <input type="date" class="ctrl-input" aria-label="Référence du mois" [(ngModel)]="monthInput" />
+            </ng-container>
+            <ng-container *ngIf="periodMode === 'personnalisee'">
+                <input type="date" class="ctrl-input" aria-label="Début" [(ngModel)]="customStartInput" />
+                <span class="date-arrow">→</span>
+                <input type="date" class="ctrl-input" aria-label="Fin" [(ngModel)]="customEndInput" />
+            </ng-container>
+            <button type="button" class="btn-primary" (click)="applyPeriod()">
+                <i class="pi pi-refresh"></i> Charger
+            </button>
+        </div>
+
+        <span class="header-sep"></span>
+
+        <!-- Groupe 3 : navigation + actions -->
+        <div class="header-group filter-group">
+            <div class="week-selector-inline">
+                <button type="button" class="mini-icon-btn" (click)="previousWeek()" aria-label="Semaine précédente">‹</button>
+                <button type="button" class="week-chip" (click)="goToday()">{{ weekLabel }}</button>
+                <button type="button" class="mini-icon-btn" (click)="nextWeek()" aria-label="Semaine suivante">›</button>
+            </div>
+
+            <select class="ctrl-select" title="Vue" aria-label="Vue" [ngModel]="currentView" (ngModelChange)="onViewChanged($event)">
+                <option value="hebdomadaire">Vue: Hebdomadaire</option>
+                <option value="journaliere">Vue: Journalière</option>
+                <option value="mensuelle">Vue: Mensuelle</option>
+            </select>
+
+            <button type="button" class="btn-ghost" (click)="export('pdf')" [disabled]="loading">
+                <i class="pi pi-file-pdf"></i> Exporter PDF
+            </button>
+
+            <input type="text" class="ctrl-input search-input" placeholder="🔍 Membre..."
+                [ngModel]="memberSearch" (ngModelChange)="onMemberSearchChanged($event)" />
+
+            <div class="actions-group actions-inline" *ngIf="canEditPlanning()">
+                <label class="check-inline-compact">
+                    <input type="checkbox" [(ngModel)]="selectionMode" /> Multi-sél.
+                </label>
+                <button type="button" class="btn-ghost" [disabled]="selectedCellsCount === 0" (click)="clearSelection()" title="Vider sélection">
+                    <i class="pi pi-times-circle"></i>
+                </button>
+                <button type="button" class="btn-ghost" (click)="saveDraft()" title="Sauvegarder brouillon">
+                    <i class="pi pi-save"></i>
+                </button>
+                <button type="button" class="btn-ghost" (click)="openVersionHistory()" title="Historique versions">
+                    <i class="pi pi-history"></i>
+                </button>
+                <span class="version-chip">{{ currentVersion }}</span>
+            </div>
+        </div>
+
+        <div class="header-row-secondary">
+            <section class="postes-section" *ngIf="filteredPostesCatalog.length > 0" aria-label="Postes rapides">
+                <header class="postes-section__header">
+                    <span class="postes-section__title">POSTES</span>
+                    <span class="postes-section__count">{{ filteredPostesCatalog.length }} postes</span>
+                </header>
+
+                <div class="postes-grid">
+                    <button
+                        type="button"
+                        class="poste-card"
+                        *ngFor="let poste of filteredPostesCatalog"
+                        [class.poste-card--selected]="selectedPosteForQuickFill?.id === poste.id"
+                        [ngClass]="'poste-card--' + poste.type"
+                        (click)="selectInlinePoste(poste)">
+                        <span class="poste-card__row poste-card__row--top">
+                            <span class="poste-card__icon" aria-hidden="true">
+                                <ng-container [ngSwitch]="poste.type">
+                                    <span *ngSwitchCase="'jour'">☀️</span>
+                                    <span *ngSwitchCase="'nuit'">🌙</span>
+                                    <span *ngSwitchCase="'garde'">🛡️</span>
+                                    <span *ngSwitchCase="'astreinte'">📟</span>
+                                    <span *ngSwitchCase="'repos'">💤</span>
+                                    <span *ngSwitchDefault>
+                                        <ng-container [ngSwitch]="true">
+                                            <span *ngSwitchCase="(poste.nom || '').toLowerCase().includes('après-midi') || (poste.nom || '').toLowerCase().includes('apres-midi') || (poste.nom || '').toLowerCase().includes('après midi') || (poste.nom || '').toLowerCase().includes('apres midi')">🌤️</span>
+                                            <span *ngSwitchCase="(poste.nom || '').toLowerCase().includes('consultation')">🩺</span>
+                                            <span *ngSwitchCase="(poste.nom || '').toLowerCase().includes('bloc')">🔬</span>
+                                            <span *ngSwitchDefault>⭐</span>
+                                        </ng-container>
+                                    </span>
+                                </ng-container>
+                            </span>
+
+                            <span class="poste-card__name">{{ poste.nom }}</span>
+
+                            <span class="poste-card__duration">
+                                {{ poste.heureDebut === '00:00' && poste.heureFin === '00:00'
+                                    ? '—'
+                                    : (
+                                        (
+                                            ((+poste.heureFin.split(':')[0] * 60 + +poste.heureFin.split(':')[1])
+                                            - (+poste.heureDebut.split(':')[0] * 60 + +poste.heureDebut.split(':')[1])
+                                            + 1440
+                                        ) % 1440 || 1440
+                                      ) / 60
+                                    ) + 'h'
+                                }}
+                            </span>
+                        </span>
+
+                        <span class="poste-card__row poste-card__row--bottom">
+                            <i class="pi pi-clock poste-card__clock" aria-hidden="true"></i>
+                            <span class="poste-card__time">{{ poste.heureDebut }} - {{ poste.heureFin }}</span>
+                        </span>
+                    </button>
+                </div>
+            </section>
+
+            <div class="header-submit-slot" *ngIf="canSubmitWorkflow()">
+                <button
+                    type="button"
+                    class="btn-primary"
+                    [disabled]="!canSubmitCurrentWorkflow"
+                    (click)="submitForValidation()">
+                    <i class="pi pi-send"></i> Soumettre
+                </button>
+            </div>
+
+        </div>
+
+    </header>
+
+
+
+    <!-- Bannière fallback API -->
+    <div class="fallback-banner" *ngIf="servicesFallbackActive || postesFallbackActive">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span *ngIf="servicesFallbackActive">Services: mode local</span>
+        <span *ngIf="servicesFallbackActive && postesFallbackActive">•</span>
+        <span *ngIf="postesFallbackActive">Postes: mode local</span>
+        <small>API: http://localhost:5239</small>
+    </div>
+
+    <!-- ══ WORKFLOWS (Admin) – compact ══ -->
+    <section class="workflow-bar" *ngIf="canManageWorkflows()">
+        <div class="wf-bar-main" (click)="workflowPanelExpanded = !workflowPanelExpanded">
+            <i class="pi pi-cog"></i>
+            <span class="wf-bar-label">Workflows</span>
+            <span class="wf-count-badge" *ngIf="configuredWorkflows.length > 0">{{ configuredWorkflows.length }}</span>
+            <i class="pi wf-chevron" [ngClass]="workflowPanelExpanded ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+        </div>
+        <button type="button" class="btn-ghost wf-manage-btn" (click)="$event.stopPropagation(); goToWorkflowConfig()">
+            <i class="pi pi-arrow-right"></i> Gérer
+        </button>
+        <div class="wf-chips" *ngIf="workflowPanelExpanded">
+            <span *ngIf="loadingWorkflows" class="wf-loading">Chargement...</span>
+            <span *ngIf="!loadingWorkflows && configuredWorkflows.length === 0" class="wf-empty">
+                Aucun workflow. <button type="button" class="btn-link" (click)="goToWorkflowConfig()">+ Créer</button>
+            </span>
+            <div *ngFor="let wf of configuredWorkflows" class="wf-chip-card" [ngClass]="getWfConfigClass(wf)"
+                 [title]="getWfServiceName(wf) + ' • v' + wf.version">
+                <span class="wf-dot" [class.active]="wf.isActive"></span>
+                {{ getWfServiceName(wf) }} — {{ (wf.steps.length || 0) }} étape(s)
+                <span class="wf-status-tag" [class.active]="wf.isActive">{{ wf.isActive ? 'Actif' : 'Inactif' }}</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="planning-layout">
+
+        <main class="planning-main">
+            <div class="compatibility-empty" *ngIf="noCompatiblePersonnelMessage">
+                {{ noCompatiblePersonnelMessage }}
+            </div>
+
+            <div class="loading-skeleton" *ngIf="loading && !planningData">
+                <div class="bar" *ngFor="let item of [1,2,3,4,5,6]"></div>
+            </div>
+
+            <app-weekly-planning
+                *ngIf="planningData"
+                [personnel]="filteredPersonnel"
+                [assignments]="visibleAssignments"
+                [weekDays]="weekDays"
+                [dayDates]="dayDates"
+                [conflicts]="visibleConflicts"
+                [dropValidator]="validateDrop"
+                [selectedCellKeys]="selectedCellKeys"
+                (cellDropped)="onCellDropped($event)"
+                (cellClicked)="onCellClicked($event)"
+                (cellContextMenu)="onCellContextMenu($event)"
+                (selectionStart)="onSelectionStart($event)"
+                (selectionEnter)="onSelectionEnter($event)"
+                (selectionEnd)="onSelectionEnd()">
+            </app-weekly-planning>
+        </main>
+    </div>
+
+    <section class="status-bar">
+        <span>Total affectations: <strong>{{ totalAssignments }}</strong></span>
+        <span>Postes non pourvus: <strong>{{ unfilledPosts }}</strong></span>
+        <span>Conflits: <strong>{{ planningData?.conflicts?.length || 0 }}</strong></span>
+        <span>% complétude: <strong>{{ completionRate }}%</strong></span>
+        <span>Dernière sauvegarde: <strong>{{ lastSavedAt ? (lastSavedAt | date:'dd/MM/yyyy HH:mm:ss') : '-' }}</strong></span>
+    </section>
+
+    <!-- Overview debug : Admin uniquement -->
+    <section class="overview-section" *ngIf="isAdmin()">
+        <h3>Planning en base (overview)</h3>
+        <div *ngIf="loadingOverview" class="overview-loading">Chargement...</div>
+        <div *ngIf="!loadingOverview && planningOverviewRows.length === 0" class="overview-empty">Aucune ligne trouvée pour ce service et cette période.</div>
+        <div *ngIf="!loadingOverview && planningOverviewRows.length > 0" class="overview-table-wrap">
+            <table class="overview-table">
+                <thead>
+                    <tr>
+                        <th>Planning</th>
+                        <th>Service</th>
+                        <th>Semaine</th>
+                        <th>Personnel</th>
+                        <th>Jour</th>
+                        <th>Shift</th>
+                        <th>Poste</th>
+                        <th>Horaire</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let row of planningOverviewRows">
+                        <td>{{ row.planningId }}</td>
+                        <td>{{ row.serviceName }}</td>
+                        <td>{{ row.weekStart | date:'yyyy-MM-dd' }} → {{ row.weekEnd | date:'yyyy-MM-dd' }}</td>
+                        <td>{{ row.personnelId || '-' }}</td>
+                        <td>{{ row.dayIndex !== null && row.dayIndex !== undefined ? (row.dayIndex + 1) : '-' }}</td>
+                        <td>{{ row.shiftType || '-' }}</td>
+                        <td>{{ row.posteLabel || row.posteId || '-' }}</td>
+                        <td>{{ (row.startTime || '-') + ' - ' + (row.endTime || '-') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div
+        class="cell-context-menu"
+        *ngIf="contextMenuVisible"
+        [style.left.px]="contextMenuX"
+        [style.top.px]="contextMenuY"
+        (click)="$event.stopPropagation()">
+        <button type="button" (click)="editContextAssignment()">Modifier</button>
+        <button type="button" (click)="clearContextAssignment()">Effacer</button>
+    </div>
+
+    <div class="modal-backdrop" *ngIf="assignmentDialogOpen" (click)="closeAssignmentDialog()">
+        <div class="modal-card" (click)="$event.stopPropagation()">
+            <h3>Affecter un poste</h3>
+            <select title="Sélection de poste" aria-label="Sélection de poste" [(ngModel)]="assignmentDialogPosteId">
+                <option value="">Sélectionner un poste</option>
+                <option *ngFor="let poste of filteredPostesCatalog" [value]="poste.id">
+                    {{ poste.nom }} • {{ poste.heureDebut }} - {{ poste.heureFin }}
+                </option>
+            </select>
+            <div class="modal-actions">
+                <button type="button" class="reset-btn" (click)="closeAssignmentDialog()">Annuler</button>
+                <button type="button" class="action-btn" [disabled]="!assignmentDialogPosteId" (click)="applyDialogAssignment()">Affecter</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-stack">
+        <article class="toast" *ngFor="let toast of toasts; trackBy: trackByToast" [class]="'toast ' + toast.severity">
+            <span>{{ toast.message }}</span>
+            <button type="button" (click)="dismissToast(toast.id)">×</button>
+        </article>
+    </div>
+
+    <div
+        *ngIf="selectedPosteForQuickFill"
+        class="cursor-poste-preview"
+        [style.left.px]="cursorPreviewX"
+        [style.top.px]="cursorPreviewY">
+        {{ selectedPosteForQuickFill.nom }} • {{ selectedPosteForQuickFill.heureDebut }}-{{ selectedPosteForQuickFill.heureFin }}
+    </div>
+</div>

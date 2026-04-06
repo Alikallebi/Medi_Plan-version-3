@@ -1,0 +1,46 @@
+<section class="filters-wrap">
+    <div class="filters-header">
+        <h3>🔍 FILTRES AVANCÉS</h3>
+        <button type="button" class="btn" (click)="resetFilters()">Réinitialiser</button>
+    </div>
+
+    <div class="filters-grid">
+        <label>
+            Du
+            <input type="date" [(ngModel)]="localFilters.dateDebut" />
+        </label>
+
+        <label>
+            Au
+            <input type="date" [(ngModel)]="localFilters.dateFin" />
+        </label>
+
+        <label>
+            Utilisateur ID
+            <input type="number" [(ngModel)]="localFilters.utilisateurId" />
+        </label>
+
+        <label>
+            Planning ID
+            <input type="number" [(ngModel)]="localFilters.planningId" />
+        </label>
+
+        <label class="search">
+            Recherche texte
+            <input type="text" [(ngModel)]="localFilters.recherche" placeholder="Description, utilisateur, planning..." />
+        </label>
+    </div>
+
+    <div class="type-grid">
+        <label *ngFor="let type of typeOptions" class="type-item">
+            <input
+                type="checkbox"
+                [checked]="(localFilters.typeEvenement || []).includes(type.value)"
+                (change)="toggleType(type.value, $any($event.target).checked)"
+            />
+            {{ type.label }}
+        </label>
+    </div>
+
+    <button type="button" class="btn apply" (click)="apply()">Appliquer les filtres</button>
+</section>

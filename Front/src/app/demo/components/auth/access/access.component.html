@@ -1,0 +1,15 @@
+<div class="surface-ground flex align-items-center justify-content-center min-h-screen min-w-screen overflow-hidden">
+    <div class="flex flex-column align-items-center justify-content-center">
+        <div class="access-shell">
+            <div class="w-full surface-card py-8 px-5 sm:px-8 flex flex-column align-items-center access-card">
+                <span class="text-red-500 font-bold text-3xl">401</span>
+                <h1 class="text-900 font-bold text-5xl mb-2">Accès refusé</h1>
+                <div class="text-600 mb-5">
+                    Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+                </div>
+                <button pButton pRipple label="Retour au tableau de bord" icon="pi pi-home"
+                    class="p-button-outlined" (click)="goHome()"></button>
+            </div>
+        </div>
+    </div>
+</div>

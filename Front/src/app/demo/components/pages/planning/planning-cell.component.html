@@ -1,0 +1,70 @@
+<div
+    class="planning-cell"
+    [class.selected-cell]="selected"
+    [class.cell-conflict]="hasConflict"
+    [class.cell-leave]="isVacation"
+    [class.cell-rest]="isRestDay"
+    [title]="cellTitle"
+    appDropZone
+    [dropData]="dropData"
+    [dropValidator]="dropValidator"
+    (dropped)="dropped.emit($event)"
+    (click)="onClickCell()"
+    (contextmenu)="onContextMenu($event)"
+    (mousedown)="onSelectionStart()"
+    (mouseenter)="onSelectionEnter()"
+    (mouseup)="onSelectionEnd()">
+
+    <div class="cell-conflict-tooltip" *ngIf="hasConflict && conflict">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span>{{ getConflictDescription() }}</span>
+    </div>
+
+    <!-- Assignments stack -->
+    <div *ngIf="hasAssignments" class="assignment-stack" [attr.data-count]="assignmentList.length">
+        <div class="period-chips" *ngIf="groupedAssignments.length > 1">
+            <span class="period-chip" *ngFor="let group of groupedAssignments">
+                {{ group.icon }} {{ group.label }}
+            </span>
+        </div>
+
+        <article
+            *ngFor="let item of visibleAssignments"
+            class="assignment-card"
+            [ngClass]="['shift-' + item.shiftType, hasConflict ? 'shift-conflict' : '']"
+            appDragDrop
+            [dragData]="toDragItem(item)">
+
+            <div class="shift-icon-wrap">
+                <i class="pi" [ngClass]="getShiftIcon(item)"></i>
+            </div>
+
+            <div class="shift-content">
+                <span class="shift-label-text">{{ getAssignmentLabel(item) }}</span>
+                <span class="shift-time" *ngIf="getTimeRange(item)">
+                    {{ getTimeRange(item) }}
+                </span>
+                <span class="shift-mobile-label">{{ getCompactLabel(item) }}</span>
+            </div>
+
+            <div class="shift-alert" *ngIf="hasConflict" title="Affectation en conflit">
+                ⚠
+            </div>
+        </article>
+
+        <button type="button" class="more-chip" *ngIf="extraAssignmentsCount > 0" [title]="extraAssignmentsCount + ' affectation(s) supplémentaire(s)'">
+            +{{ extraAssignmentsCount }} autres
+        </button>
+    </div>
+
+    <!-- Empty / rest day drop zone -->
+    <div *ngIf="!hasAssignments" class="empty-drop-zone">
+        <span *ngIf="isVacation" class="emoji-flag">🏖️</span>
+        <span *ngIf="isRestDay && !isVacation" class="emoji-flag">😴</span>
+        <ng-container *ngIf="!isVacation && !isRestDay">
+            <i class="pi pi-plus-circle drop-icon"></i>
+            <span class="drop-label">Glisser ici</span>
+        </ng-container>
+    </div>
+
+</div>

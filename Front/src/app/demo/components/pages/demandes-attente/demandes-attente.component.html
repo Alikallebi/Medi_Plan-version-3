@@ -1,0 +1,77 @@
+<p-toast></p-toast>
+
+<div class="pending-requests-page">
+    <header>
+        <h1>Demandes personnelles en attente</h1>
+        <button pButton type="button" icon="pi pi-refresh" label="Actualiser" [loading]="loading" (click)="loadRequests()"></button>
+    </header>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Utilisateur</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Créneau</th>
+                    <th>Durée</th>
+                    <th>Commentaire</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <ng-container *ngFor="let request of requests">
+                    <tr>
+                        <td>#{{ request.userId }}</td>
+                        <td>{{ request.date | date:'dd/MM/yyyy' }}</td>
+                        <td>{{ request.type }}</td>
+                        <td>{{ request.heureDebut }} - {{ request.heureFin }}</td>
+                        <td>{{ request.dureeHeures | number:'1.0-2' }} h</td>
+                        <td>{{ request.commentaire || '-' }}</td>
+                        <td class="actions-cell">
+                            <button pButton type="button" class="p-button-sm p-button-outlined" icon="pi pi-history" label="Historique" (click)="toggleHistory(request)"></button>
+                            <button pButton type="button" class="p-button-sm" icon="pi pi-check" label="Approuver" [loading]="actionLoading" (click)="approve(request)"></button>
+                            <button pButton type="button" class="p-button-sm p-button-danger p-button-outlined" icon="pi pi-times" label="Rejeter" [loading]="actionLoading" (click)="openReject(request)"></button>
+                        </td>
+                    </tr>
+
+                    <tr *ngIf="expandedHistoryId === request.id" class="history-row">
+                        <td colspan="7">
+                            <div class="history-panel" *ngIf="!historyLoading; else historyLoader">
+                                <div class="history-item" *ngFor="let event of getHistoryForRequest(request.id)">
+                                    <div class="history-item-header">
+                                        <strong>{{ getHistoryActionLabel(event.action) }}</strong>
+                                        <span>{{ event.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                                    </div>
+                                    <p>Par: {{ getHistoryActorLabel(event) }}</p>
+                                    <p *ngIf="event.commentaire">{{ event.commentaire }}</p>
+                                </div>
+                                <p class="empty-history" *ngIf="getHistoryForRequest(request.id).length === 0">Aucun événement disponible.</p>
+                            </div>
+
+                            <ng-template #historyLoader>
+                                <div class="history-loader">Chargement de l’historique...</div>
+                            </ng-template>
+                        </td>
+                    </tr>
+                </ng-container>
+                <tr *ngIf="!loading && requests.length === 0">
+                    <td colspan="7">Aucune demande en attente.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="reject-backdrop" *ngIf="selectedRequest" (click)="cancelReject()"></div>
+<div class="reject-modal" *ngIf="selectedRequest">
+    <h3>Rejeter la demande #{{ selectedRequest.id }}</h3>
+    <label>
+        <span>Motif du rejet</span>
+        <textarea rows="4" [(ngModel)]="rejectReason" placeholder="Indiquez le motif de rejet"></textarea>
+    </label>
+    <div class="modal-actions">
+        <button pButton type="button" class="p-button-text" label="Annuler" (click)="cancelReject()"></button>
+        <button pButton type="button" class="p-button-danger" icon="pi pi-times" label="Confirmer le rejet" [loading]="actionLoading" (click)="confirmReject()"></button>
+    </div>
+</div>

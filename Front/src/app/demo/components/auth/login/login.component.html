@@ -1,0 +1,142 @@
+<div class="login-page">
+  <div class="login-shell">
+    <section class="login-visual" aria-hidden="true">
+      <div class="visual-gradient"></div>
+      <div class="visual-orb orb-primary"></div>
+      <div class="visual-orb orb-secondary"></div>
+
+      <div class="visual-particles">
+        <span *ngFor="let particle of particles" class="particle"></span>
+      </div>
+
+      <div class="visual-content">
+        <div class="brand-pill">
+          <i class="pi pi-heart-fill"></i>
+          <span>MediPlan</span>
+        </div>
+
+        <h1>Planification médicale<br>de nouvelle génération</h1>
+        <p>Une expérience fiable, fluide et sécurisée pour les équipes soignantes.</p>
+
+        <div class="visual-quote">
+          “{{ quote }}”
+        </div>
+
+        <div class="visual-meta">
+          <span>{{ greeting }}</span>
+          <span class="separator">•</span>
+          <span>{{ currentTime }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-form-side">
+      <div class="form-card">
+        <div class="form-header">
+          <div class="brand-mark">
+            
+            <img src="assets/layout/images/logo.png"  alt="CLINISYS Planner" class="brand-logo">
+            <div class="brand-text">
+              <strong>CLINISYS Planner</strong>
+              <span>Planification hospitalière</span>
+            </div>
+          </div>
+          <h2>Connexion sécurisée</h2>
+          <p>Accédez à votre espace professionnel de planification médicale</p>
+        </div>
+
+        <div *ngIf="loginErrorMessage" class="feedback error">
+          <i class="pi pi-exclamation-triangle"></i>
+          <span>{{ loginErrorMessage }}</span>
+        </div>
+
+        <div *ngIf="loginSuccessMessage" class="feedback success">
+          <i class="pi pi-check-circle"></i>
+          <span>{{ loginSuccessMessage }}</span>
+        </div>
+
+        <div class="field-group">
+          <label for="email">Email professionnel</label>
+          <div class="input-wrap">
+            <i class="pi pi-envelope"></i>
+            <input
+              id="email"
+              type="email"
+              placeholder="nom@clinique.fr"
+              title="Saisir votre email professionnel"
+              aria-label="Email professionnel"
+              autocomplete="email"
+              [(ngModel)]="email"
+              [disabled]="isLoading"
+            >
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="password">Mot de passe</label>
+          <div class="input-wrap">
+            <i class="pi pi-lock"></i>
+            <input
+              id="password"
+              [type]="showPassword ? 'text' : 'password'"
+              placeholder="••••••••"
+              title="Saisir votre mot de passe"
+              aria-label="Mot de passe"
+              autocomplete="current-password"
+              [(ngModel)]="password"
+              [disabled]="isLoading"
+              (keyup.enter)="signIn()"
+            >
+            <button
+              type="button"
+              class="eye-btn"
+              (click)="togglePasswordVisibility()"
+              [disabled]="isLoading"
+              title="Afficher ou masquer le mot de passe"
+              aria-label="Afficher ou masquer le mot de passe">
+              <i class="pi" [ngClass]="showPassword ? 'pi-eye-slash' : 'pi-eye'"></i>
+              <span class="sr-only">Afficher ou masquer le mot de passe</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="remember-wrap">
+            <p-checkbox
+              inputId="rememberme"
+              [(ngModel)]="rememberMe"
+              [binary]="true"
+              [disabled]="isLoading"
+              ariaLabel="Se souvenir de moi"
+              title="Se souvenir de moi">
+            </p-checkbox>
+            <label for="rememberme">Se souvenir de moi</label>
+          </div>
+          <button type="button" class="link-btn" (click)="redirectToForgotPassword()" [disabled]="isLoading" title="Réinitialiser le mot de passe" aria-label="Mot de passe oublié">
+            Mot de passe oublié ?
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="login-btn"
+          [disabled]="isLoading"
+          title="Se connecter"
+          aria-label="Se connecter"
+          (click)="signIn()"
+        >
+          <span *ngIf="!isLoading">SE CONNECTER</span>
+          <span *ngIf="isLoading" class="loading-wrap">
+            <span class="spinner"></span>
+            CONNEXION...
+          </span>
+        </button>
+
+        <div class="form-footer">
+          <small>© 2025 MediPlan · {{ version }}</small>
+          <small><i class="pi pi-lock"></i> Connexion sécurisée</small>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

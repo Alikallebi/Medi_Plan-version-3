@@ -1,0 +1,406 @@
+<div class="competence-container">
+  <!-- Toast et Confirmation -->
+  <p-toast position="top-right"></p-toast>
+  <p-confirmDialog></p-confirmDialog>
+
+  <!-- En-tête avec effet de verre -->
+  <div class="page-header">
+    <div class="header-content">
+      <div class="title-section">
+        <div class="title-icon">
+          <i class="pi pi-cog medical-icon"></i>
+          <span class="icon-glow"></span>
+        </div>
+        <div class="title-text">
+          <h1>Gestion des compétences</h1>
+          <p class="subtitle">Gérez les compétences et qualifications du personnel médical</p>
+        </div>
+      </div>
+      
+      <button 
+        pButton 
+        type="button" 
+        class="add-button"
+        (click)="openNew()"
+        *ngIf="rbac.canEdit('referentiel.competences')">
+        <i class="pi pi-plus"></i>
+        <span>Nouvelle compétence</span>
+      </button>
+    </div>
+    
+    <!-- Statistiques rapides -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">
+          <i class="pi pi-tag"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ competences.length }}</span>
+          <span class="stat-label">Total compétences</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">
+          <i class="pi pi-check-circle"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getActiveCount() }}</span>
+          <span class="stat-label">Actives</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">
+          <i class="pi pi-users"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">{{ getPersonnelCount() }}</span>
+          <span class="stat-label">Personnels certifiés</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tableau des compétences -->
+  <div class="table-wrapper">
+    <!-- Barre d'outils -->
+    <div class="table-toolbar">
+      <div class="search-section">
+        <div class="search-box">
+          <i class="pi pi-search"></i>
+          <input 
+            pInputText 
+            #globalFilter
+            (input)="onGlobalFilterChange(globalFilter.value)"
+            placeholder="Rechercher une compétence..."
+            class="search-input">
+        </div>
+        
+        <div class="filter-chips">
+          <button 
+            class="filter-chip" 
+            [class.active]="filterStatus === 'all'"
+            (click)="filterByStatus('all')">
+            Toutes
+          </button>
+          <button 
+            class="filter-chip active-chip" 
+            [class.active]="filterStatus === 'active'"
+            (click)="filterByStatus('active')">
+            <span class="dot active"></span>
+            Actives
+          </button>
+          <button 
+            class="filter-chip inactive-chip" 
+            [class.active]="filterStatus === 'inactive'"
+            (click)="filterByStatus('inactive')">
+            <span class="dot inactive"></span>
+            Inactives
+          </button>
+        </div>
+      </div>
+
+      <div class="view-options">
+        <button class="view-btn" [class.active]="viewMode === 'grid'" (click)="viewMode = 'grid'">
+          <i class="pi pi-th-large"></i>
+        </button>
+        <button class="view-btn" [class.active]="viewMode === 'list'" (click)="viewMode = 'list'">
+          <i class="pi pi-list"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Vue Table -->
+    <div class="table-container" *ngIf="viewMode === 'list'">
+      <p-table 
+        #dt
+        [value]="filteredCompetences"
+        [rows]="10"
+        [paginator]="true"
+        [loading]="loading"
+        responsiveLayout="scroll"
+        styleClass="p-datatable-striped modern-table"
+        [rowHover]="true"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="Affichage {first} à {last} sur {totalRecords} compétences"
+        [rowsPerPageOptions]="[10, 25, 50]">
+
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Compétence</th>
+            <th>Description</th>
+            <th>Statut</th>
+            <th>Personnels</th>
+            <th>Dernière mise à jour</th>
+            <th class="actions-header">Actions</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-competence>
+          <tr class="table-row">
+            <td>
+              <div class="competence-name">
+                <div class="name-icon" [style.background]="getCompetenceColor(competence)">
+                  <i class="pi pi-check-circle"></i>
+                </div>
+                <div class="name-details">
+                  <span class="name">{{ competence.nom }}</span>
+                  <span class="code">{{ competence.code || 'COMP-' + competence.id }}</span>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="description">
+                {{ competence.description || 'Aucune description' }}
+              </div>
+            </td>
+            <td>
+              <div class="status-badge" [class.active]="competence.actif" [class.inactive]="!competence.actif">
+                <span class="status-dot"></span>
+                <span>{{ competence.actif ? 'Actif' : 'Inactif' }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="personnel-count">
+                <div class="count-badge">
+                  <i class="pi pi-users"></i>
+                  <span>{{ getCompetencePersonnelCount(competence) }}</span>
+                </div>
+                <div class="personnel-avatars" *ngIf="getCompetencePersonnelCount(competence)">
+                  <span class="avatar-group">
+                    <span class="avatar" *ngFor="let p of getPersonnelAvatars(competence)">
+                      {{ p }}
+                    </span>
+                    <span class="avatar more" *ngIf="getCompetencePersonnelCount(competence) > 3">
+                      +{{ getCompetencePersonnelCount(competence) - 3 }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="date-info">
+                <i class="pi pi-calendar"></i>
+                {{ competence.updatedAt | date:'dd/MM/yyyy' }}
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button 
+                  class="action-btn edit" 
+                  (click)="editCompetence(competence)"
+                  *ngIf="rbac.canEdit('referentiel.competences')"
+                  pTooltip="Modifier"
+                  tooltipPosition="top">
+                  <i class="pi pi-pencil"></i>
+                </button>
+                <button 
+                  class="action-btn delete" 
+                  (click)="deleteCompetence(competence)"
+                  *ngIf="rbac.canEdit('referentiel.competences')"
+                  pTooltip="Supprimer"
+                  tooltipPosition="top">
+                  <i class="pi pi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="empty-message">
+              <div class="empty-state">
+                <i class="pi pi-database"></i>
+                <h3>Aucune compétence trouvée</h3>
+                <p>Commencez par ajouter votre première compétence</p>
+                <button class="empty-add-btn" (click)="openNew()">
+                  <i class="pi pi-plus"></i>
+                  Ajouter une compétence
+                </button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <!-- Vue Grille -->
+    <div class="grid-view" *ngIf="viewMode === 'grid' && filteredCompetences.length > 0">
+      <div class="cards-grid">
+        <div class="competence-card" *ngFor="let competence of filteredCompetences" 
+             [class.inactive]="!competence.actif"
+             (click)="editCompetence(competence)">
+          <div class="card-header" [style.background]="getCompetenceGradient(competence)">
+            <div class="card-icon">
+              <i class="pi pi-check-circle"></i>
+            </div>
+            <div class="card-actions" (click)="$event.stopPropagation()">
+              <button class="card-action-btn" (click)="editCompetence(competence)">
+                <i class="pi pi-pencil"></i>
+              </button>
+              <button class="card-action-btn delete" (click)="deleteCompetence(competence)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <h3>{{ competence.nom }}</h3>
+            <p>{{ competence.description || 'Aucune description' }}</p>
+          </div>
+          <div class="card-footer">
+            <div class="card-stat">
+              <i class="pi pi-users"></i>
+              <span>{{ getCompetencePersonnelCount(competence) }} personnels</span>
+            </div>
+            <div class="card-badge" [class.active]="competence.actif">
+              {{ competence.actif ? 'Actif' : 'Inactif' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="loading-state" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Chargement des compétences...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Dialog -->
+<p-dialog 
+  [(visible)]="competenceDialog" 
+  [style]="{width: '600px'}"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="competence-dialog">
+
+  <ng-template pTemplate="header">
+    <div class="dialog-header">
+      <div class="dialog-icon">
+        <i class="pi" [ngClass]="editingId ? 'pi-pencil' : 'pi-plus'"></i>
+      </div>
+      <div class="dialog-title">
+        <h2>{{ editingId ? 'Modifier' : 'Nouvelle' }} compétence</h2>
+        <p>{{ editingId ? 'Modifiez les informations de la compétence' : 'Ajoutez une nouvelle compétence au référentiel' }}</p>
+      </div>
+    </div>
+  </ng-template>
+
+  <form [formGroup]="competenceForm" class="competence-form">
+    <!-- Champ Nom -->
+    <div class="form-field" [class.has-error]="submitted && nomControl?.invalid">
+      <label for="nom">
+        <i class="pi pi-tag"></i>
+        Nom de la compétence <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <input 
+          id="nom" 
+          pInputText 
+          formControlName="nom"
+          placeholder="ex: Réanimation d'urgence"
+          class="modern-input"
+          [class.error]="submitted && nomControl?.invalid">
+      </div>
+      <div class="error-message" *ngIf="submitted && nomControl?.invalid">
+        <i class="pi pi-exclamation-circle"></i>
+        <span>Le nom de la compétence est requis</span>
+      </div>
+    </div>
+
+    <!-- Champ Description -->
+    <div class="form-field">
+      <label for="domaine">
+        <i class="pi pi-sitemap"></i>
+        Domaine
+      </label>
+      <div class="input-wrapper">
+        <input 
+          id="domaine" 
+          pInputText 
+          formControlName="domaine"
+          placeholder="ex: Urgences, Chirurgie, Général"
+          class="modern-input">
+      </div>
+      <div class="field-hint">
+        <i class="pi pi-info-circle"></i>
+        <span>Le domaine sert à classer les compétences dans la base de données</span>
+      </div>
+    </div>
+
+    <!-- Champ Description -->
+    <div class="form-field">
+      <label for="description">
+        <i class="pi pi-align-left"></i>
+        Description
+      </label>
+      <div class="input-wrapper">
+        <textarea 
+          id="description" 
+          pInputTextarea 
+          formControlName="description"
+          placeholder="Décrivez cette compétence en détail..."
+          rows="4"
+          class="modern-textarea">
+        </textarea>
+      </div>
+      <div class="field-hint">
+        <i class="pi pi-info-circle"></i>
+        <span>Description détaillée des compétences requises</span>
+      </div>
+    </div>
+
+    <!-- Statut -->
+    <div class="form-field switch-field">
+      <label for="actif">
+        <i class="pi pi-power-off"></i>
+        Statut
+      </label>
+      <div class="switch-wrapper">
+        <p-inputSwitch 
+          id="actif" 
+          formControlName="actif"
+          [style]="{'transform': 'scale(1.2)'}">
+        </p-inputSwitch>
+        <span class="status-text" [class.active]="competenceForm.get('actif')?.value">
+          {{ competenceForm.get('actif')?.value ? 'Actif' : 'Inactif' }}
+        </span>
+      </div>
+      <div class="field-hint">
+        <i class="pi pi-info-circle"></i>
+        <span>Les compétences inactives ne seront pas proposées dans les formulaires</span>
+      </div>
+    </div>
+
+    <!-- Prévisualisation -->
+    <div class="preview-section" *ngIf="competenceForm.get('nom')?.value">
+      <div class="preview-header">
+        <i class="pi pi-eye"></i>
+        <span>Aperçu</span>
+      </div>
+      <div class="preview-badge">
+        <i class="pi pi-check-circle"></i>
+        <span>{{ competenceForm.get('nom')?.value || 'Nouvelle compétence' }}</span>
+        <span class="preview-status" [class.active]="competenceForm.get('actif')?.value">
+          {{ competenceForm.get('actif')?.value ? 'Actif' : 'Inactif' }}
+        </span>
+      </div>
+    </div>
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button class="cancel-btn" (click)="hideDialog()">
+        <i class="pi pi-times"></i>
+        Annuler
+      </button>
+      <button class="save-btn" (click)="saveCompetence()">
+        <i class="pi" [ngClass]="editingId ? 'pi-check' : 'pi-save'"></i>
+        {{ editingId ? 'Mettre à jour' : 'Créer la compétence' }}
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>

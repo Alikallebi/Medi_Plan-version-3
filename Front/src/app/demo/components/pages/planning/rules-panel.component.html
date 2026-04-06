@@ -1,0 +1,96 @@
+<aside class="rules-panel" [class.collapsed]="isCollapsed">
+
+    <!-- ── TOGGLE TAB ── -->
+    <button class="toggle-tab" type="button" (click)="toggle()"
+            [attr.title]="isCollapsed ? 'Afficher le panneau' : 'Masquer le panneau'">
+        <i class="pi" [ngClass]="isCollapsed ? 'pi-chevron-left' : 'pi-chevron-right'"></i>
+    </button>
+
+    <!-- ── MAIN CONTENT ── -->
+    <div class="panel-body">
+    <div class="stats-strip">
+        <div class="kpi-chip"
+             [class.kpi-ok]="stats.occupancyRate >= 80"
+             [class.kpi-warn]="stats.occupancyRate > 0 && stats.occupancyRate < 80">
+            <span class="kpi-value">{{ stats.occupancyRate }}%</span>
+            <span class="kpi-label">Occupation</span>
+        </div>
+        <div class="kpi-chip">
+            <span class="kpi-value">{{ stats.coveredPosts }}<span class="kpi-of">/{{ stats.totalPosts }}</span></span>
+            <span class="kpi-label">Postes</span>
+        </div>
+        <div class="kpi-chip" [class.kpi-danger]="stats.conflicts > 0">
+            <span class="kpi-value">{{ stats.conflicts }}</span>
+            <span class="kpi-label">Conflits</span>
+        </div>
+    </div>
+
+    <!-- ── ALERTES & CONFLITS ── -->
+    <section class="panel-section alerts-section" [class.has-conflicts]="conflicts.length > 0">
+        <div class="panel-title-row">
+            <span class="panel-title">
+                <i class="pi pi-exclamation-triangle"></i> Alertes
+            </span>
+            <span class="alert-badge" [class.alert-badge-danger]="conflicts.length > 0">{{ conflicts.length }}</span>
+        </div>
+        <div class="conflict-list" *ngIf="conflicts.length > 0; else noConflict">
+            <article *ngFor="let conflict of conflicts"
+                     class="conflict-item"
+                     [class.critical]="conflict.severity === 'critical'">
+                <div class="conflict-body">
+                    <span class="conflict-dot" [class.critical]="conflict.severity === 'critical'"></span>
+                    <div class="conflict-text">
+                        <p>{{ conflict.description }}</p>
+                        <small *ngIf="conflict.details">{{ conflict.details }}</small>
+                    </div>
+                </div>
+                <button class="resolve-btn" type="button" (click)="resolveConflict.emit(conflict.id)">
+                    <i class="pi pi-wrench"></i> Résoudre
+                </button>
+            </article>
+        </div>
+        <ng-template #noConflict>
+            <p class="empty-state"><i class="pi pi-check-circle"></i> Aucun conflit détecté</p>
+        </ng-template>
+    </section>
+
+    <!-- ── RÈGLES & CONTRAINTES ── -->
+    <section class="panel-section rules-section">
+        <div class="panel-title-row">
+            <span class="panel-title"><i class="pi pi-shield"></i> Règles</span>
+            <span class="rules-count">{{ rules.length }}</span>
+        </div>
+        <ul class="rules-list" *ngIf="rules.length > 0; else noRules">
+            <li *ngFor="let rule of rules"
+                class="rule-item"
+                [class.rule-ko]="getRuleState(rule) === 'ko'">
+                <i class="pi rule-icon"
+                   [ngClass]="getRuleState(rule) === 'ok' ? 'pi-check-circle' : 'pi-times-circle'"></i>
+                <div class="rule-text">
+                    <strong>{{ rule.name }}</strong>
+                    <p>{{ rule.description }}</p>
+                </div>
+            </li>
+        </ul>
+        <ng-template #noRules>
+            <p class="empty-state"><i class="pi pi-info-circle"></i> Aucune règle configurée</p>
+        </ng-template>
+    </section>
+
+    <!-- ── LÉGENDE ── -->
+    <section class="panel-section legend-section">
+        <div class="panel-title-row">
+            <span class="panel-title"><i class="pi pi-palette"></i> Légende</span>
+        </div>
+        <div class="legend-grid">
+            <div class="legend-item"><span class="legend-swatch jour"></span><span class="legend-label">Jour</span></div>
+            <div class="legend-item"><span class="legend-swatch nuit"></span><span class="legend-label">Nuit</span></div>
+            <div class="legend-item"><span class="legend-swatch garde"></span><span class="legend-label">Garde</span></div>
+            <div class="legend-item"><span class="legend-swatch astreinte"></span><span class="legend-label">Astreinte</span></div>
+            <div class="legend-item"><span class="legend-swatch conflit"></span><span class="legend-label">Conflit</span></div>
+        </div>
+    </section>
+
+    </div><!-- /panel-body -->
+
+</aside>

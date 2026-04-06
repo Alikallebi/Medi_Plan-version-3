@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLINISYSY - Planning Médical</title>
+    <link rel="stylesheet" href="./PlanningExportTemplate.css">
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-left">
+                <div class="logo">CS</div>
+                <div class="header-info">
+                    <h1>PLANNING HEBDOMADAIRE</h1>
+                    <div class="subtitle">CLINISYSY - Gestion Médicale</div>
+                    <div class="service">{{SERVICE_NAME}}</div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="period">📅 {{WEEK_START}} → {{WEEK_END}}</div>
+                <div class="meta">Référence: {{REFERENCE}}</div>
+                <div class="meta">Version: {{VERSION}}</div>
+                <div class="meta">Chef de service: {{CHEF_SERVICE}}</div>
+            </div>
+        </div>
+
+        <!-- KPI / STATISTIQUES -->
+        <div class="stats">
+            <div class="stat-card primary">
+                <div class="stat-value">{{TOTAL_ASSIGNMENTS}}</div>
+                <div class="stat-label">Total Affectations</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-value">{{ACTIVE_STAFF}}</div>
+                <div class="stat-label">Personnel Actif</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-value">{{TEMPORARY_STAFF}}</div>
+                <div class="stat-label">Personnel Temporaire</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-value">{{OCCUPANCY_RATE}}<span class="stat-unit">%</span></div>
+                <div class="stat-label">Taux d'Occupation</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" data-rate="{{OCCUPANCY_RATE}}"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ALERTE (OPTIONNELLE) -->
+        <!--
+        <div class="alert info">
+            <span>ℹ️</span>
+            <span>Ce planning a été validé par le service RH le {{VALIDATION_DATE}}</span>
+        </div>
+        -->
+
+        <!-- TABLEAU PRINCIPAL -->
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-date">Date</th>
+                        <th class="col-day">Jour</th>
+                        <th class="col-user">Utilisateur</th>
+                        <th class="col-id">ID Personnel</th>
+                        <th class="col-type">Type</th>
+                        <th class="col-poste">Poste</th>
+                        <th class="col-hours">Horaire</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ROWS}}
+                    <!-- Exemple de ligne (sera généré dynamiquement) :
+                    <tr class="shift-jour">
+                        <td class="date">2026-03-03</td>
+                        <td class="day">Lundi</td>
+                        <td class="user">Dr. Marie MARTIN</td>
+                        <td>P12345</td>
+                        <td><span class="shift-badge shift-jour">Jour</span></td>
+                        <td>Consultation Cardiologie</td>
+                        <td>08:00 - 16:00</td>
+                        <td>Garde sénior</td>
+                    </tr>
+                    -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- LÉGENDE -->
+        <div class="legend">
+            <div class="legend-title">📋 Légende des Types de Postes</div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color legend-jour"></div>
+                    <span class="legend-label">Jour</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-apres-midi"></div>
+                    <span class="legend-label">Après-midi</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-nuit"></div>
+                    <span class="legend-label">Nuit</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-garde"></div>
+                    <span class="legend-label">Garde</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-astreinte"></div>
+                    <span class="legend-label">Astreinte</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-repos"></div>
+                    <span class="legend-label">Repos</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-formation"></div>
+                    <span class="legend-label">Formation</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER / SIGNATURES -->
+        <div class="footer">
+            <div class="signatures">
+                <div class="signature-block">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Signature Chef de Service</div>
+                </div>
+                <div class="signature-block">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Signature Direction RH</div>
+                </div>
+                <div class="signature-block">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Validation Cadre</div>
+                </div>
+            </div>
+            <div class="footer-info">
+                <div>
+                    <span class="confidential">⚠️ Document confidentiel</span> - Usage interne uniquement
+                </div>
+                <div>
+                    Généré le {{GENERATION_DATE}} · Page 1/1 · © 2026 CLINISYSY
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var progress = document.querySelector('.progress-fill');
+            if (!progress) return;
+
+            var raw = progress.getAttribute('data-rate');
+            var rate = Number.parseFloat(raw || '0');
+            if (Number.isNaN(rate)) rate = 0;
+            rate = Math.max(0, Math.min(100, rate));
+
+            progress.style.width = rate + '%';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<div class="demande-backdrop" *ngIf="visible" (click)="closeModal()"></div>
+
+<section class="demande-modal" *ngIf="visible" role="dialog" aria-modal="true" aria-label="Créer une demande">
+    <header>
+        <h3>Nouvelle demande</h3>
+        <button type="button" pButton class="p-button-text" icon="pi pi-times" (click)="closeModal()" [disabled]="loading" aria-label="Fermer"></button>
+    </header>
+
+    <div class="form-grid">
+        <label>
+            <span>Date</span>
+            <input type="date" [(ngModel)]="form.date" [disabled]="loading" />
+        </label>
+
+        <label>
+            <span>Type</span>
+            <select [(ngModel)]="form.type" [disabled]="loading">
+                <option *ngFor="let option of typeOptions" [ngValue]="option.value">{{ option.label }}</option>
+            </select>
+        </label>
+
+        <label>
+            <span>Heure début</span>
+            <input type="time" [(ngModel)]="form.heureDebut" [disabled]="loading" />
+        </label>
+
+        <label>
+            <span>Heure fin</span>
+            <input type="time" [(ngModel)]="form.heureFin" [disabled]="loading" />
+        </label>
+
+        <label class="full-width">
+            <span>Commentaire</span>
+            <textarea rows="3" [(ngModel)]="form.commentaire" [disabled]="loading" placeholder="Détails complémentaires (optionnel)"></textarea>
+        </label>
+    </div>
+
+    <p class="validation-error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+    <footer>
+        <button type="button" pButton class="p-button-text" label="Annuler" (click)="closeModal()" [disabled]="loading"></button>
+        <button type="button" pButton label="Envoyer la demande" icon="pi pi-send" (click)="submit()" [loading]="loading"></button>
+    </footer>
+</section>

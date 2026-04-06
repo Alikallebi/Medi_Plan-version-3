@@ -1,0 +1,28 @@
+<div class="blocked-wrapper">
+    <p class="empty" *ngIf="plannings.length === 0">Aucun planning bloqué ou en retard.</p>
+
+    <table class="blocked-table" *ngIf="plannings.length > 0">
+        <thead>
+            <tr>
+                <th>Planning</th>
+                <th>Service</th>
+                <th>Bloqué chez</th>
+                <th>Depuis</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let planning of plannings">
+                <td>{{ planning.nom }}</td>
+                <td>{{ planning.service }}</td>
+                <td>{{ planning.bloqueChez }} ({{ planning.bloqueChezRole }})</td>
+                <td>{{ planning.joursDepasses }} jour(s)</td>
+                <td class="actions">
+                    <button type="button" class="btn" (click)="relancer.emit(planning)">📧</button>
+                    <button type="button" class="btn" (click)="reaffecter.emit(planning)">🔄</button>
+                    <button type="button" class="btn" (click)="validerDOffice.emit(planning)">✓</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

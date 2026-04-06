@@ -1,0 +1,35 @@
+<section class="export-wrap">
+    <h3>📤 EXPORTER L'AUDIT</h3>
+
+    <div class="row">
+        <label>Format</label>
+        <select title="Choisir le format d'export" aria-label="Choisir le format d'export" [(ngModel)]="format">
+            <option value="pdf">PDF</option>
+            <option value="excel">Excel</option>
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+        </select>
+    </div>
+
+    <div class="row">
+        <label>Périmètre</label>
+        <div class="radios">
+            <label><input type="radio" name="scope" [(ngModel)]="scope" value="all" /> Toute l'histoire</label>
+            <label><input type="radio" name="scope" [(ngModel)]="scope" value="filtered" /> Période filtrée</label>
+            <label>
+                <input type="radio" name="scope" [(ngModel)]="scope" value="last-days" />
+                Derniers
+                <input type="number" min="1" [(ngModel)]="lastDays" [disabled]="scope !== 'last-days'" />
+                jours
+            </label>
+        </div>
+    </div>
+
+    <div class="row">
+        <label>Inclure</label>
+        <label><input type="checkbox" [(ngModel)]="includePlanning" /> Événements plannings</label>
+        <label><input type="checkbox" [(ngModel)]="includeUser" /> Événements utilisateurs</label>
+    </div>
+
+    <button type="button" class="btn" (click)="onExport()">Exporter</button>
+</section>

@@ -1,0 +1,356 @@
+﻿<!-- WRAPPER : formulaire (gauche) + liste enregistrée (droite) -->
+<div class="wf-page-outer">
+
+    <!-- ══ FORMULAIRE ══════════════════════════════════════════════════════ -->
+    <section class="wf-config-page">
+
+        <!-- En-tête -->
+        <header class="wf-header">
+            <h2>CONFIGURATION DES WORKFLOWS</h2>
+            <a class="btn btn-ghost" routerLink="/workflow/admin-dashboard">← Retour au dashboard</a>
+        </header>
+
+        <!-- Sélecteur de service -->
+        <div class="panel selector-panel">
+            <label for="service-select" class="selector-label">Service :</label>
+            <div class="select-wrapper" *ngIf="!isLoadingServices; else loadingServices">
+                <select
+                    id="service-select"
+                    class="service-select modern-select"
+                    [(ngModel)]="selectedServiceId"
+                    (ngModelChange)="onServiceChange()">
+                    <option [ngValue]="null" disabled>— Sélectionner un service —</option>
+                    <option *ngFor="let s of services" [ngValue]="s.id">{{ s.nom }}</option>
+                </select>
+            </div>
+            <ng-template #loadingServices>
+                <span class="loading-inline">⏳ Chargement des services…</span>
+            </ng-template>
+        </div>
+
+        <!-- Erreur globale -->
+        <div *ngIf="hasError" class="error-banner">
+            ⚠️ {{ errorMessage }}
+        </div>
+
+        <!-- Corps principal -->
+        <ng-container *ngIf="selectedServiceId">
+
+            <div *ngIf="isLoadingConfig" class="panel loading-config">
+                <div class="skeleton-row" *ngFor="let _ of [1,2,3]"></div>
+            </div>
+
+            <ng-container *ngIf="!isLoadingConfig">
+
+                <!-- Circuit de validation -->
+                <div class="panel circuit-panel">
+                    <div class="circuit-header">
+                        <h3> CIRCUIT DE VALIDATION – {{ serviceLabel | uppercase }}</h3>
+                        <span class="badge" [class.badge-actif]="workflowActif" [class.badge-inactif]="!workflowActif">
+                            {{ workflowActif ? 'Actif' : 'Inactif' }}
+                        </span>
+                    </div>
+
+                    <div *ngIf="etapes.length === 0" class="empty-circuit">
+                        <p class="empty-msg">Aucun workflow configuré pour ce service.</p>
+                        <p class="empty-hint">Cliquez sur « Ajouter une étape » pour commencer.</p>
+                    </div>
+
+                    <!-- SCHÉMA DE WORKFLOW avec photos des validateurs -->
+                    <div class="workflow-diagram">
+                        <!-- Ligne des étapes de validation -->
+                        <div class="wf-validation-steps">
+                            <ng-container *ngFor="let etape of etapes; let i = index; let last = last">
+                                <div class="wf-step-track">
+                                    <div class="wf-step-circle" [class.wf-step-circle-final]="etape.isFinalApproval">
+                                        <ng-container *ngIf="hasStepPhoto(etape); else stepIconFallback">
+                                            <div class="wf-step-avatar">
+                                                <img [src]="getStepPhotoUrl(etape)"
+                                                     [alt]="getStepResponsibleName(etape)"
+                                                     class="wf-step-avatar-img">
+                                            </div>
+                                        </ng-container>
+                                        <ng-template #stepIconFallback>
+                                            <div class="wf-step-avatar wf-step-avatar-empty">
+                                                <i class="pi pi-user wf-step-avatar-icon" aria-hidden="true"></i>
+                                            </div>
+                                        </ng-template>
+                                        <span class="wf-step-number">{{ i + 1 }}</span>
+                                    </div>
+
+                                    <div class="wf-step-meta">
+                                        <span class="wf-step-role">{{ getRoleLabel(etape.roleValidateur) }}</span>
+                                        <span class="wf-step-name">{{ getStepResponsibleName(etape) }}</span>
+                                        <span *ngIf="etape.delaiMaxHeures" class="wf-step-delai">
+                                            ⏱ {{ etape.delaiMaxHeures }}h
+                                        </span>
+                                    </div>
+
+                                    <!-- Actions miniatures -->
+                                    <div class="wf-step-actions">
+                                        <button type="button" class="wf-btn-icon" title="Modifier" (click)="openModifier(i)">✏️</button>
+                                        <button type="button" class="wf-btn-icon" title="Supprimer" (click)="demanderSuppression(i)">🗑️</button>
+                                    </div>
+                                </div>
+
+                                <div class="wf-step-arrow" *ngIf="!last">
+                                    <span class="wf-step-arrow-line"></span>
+                                    <span class="wf-step-arrow-head">➜</span>
+                                </div>
+                            </ng-container>
+                        </div>
+
+                        <!-- Zone "Formulaire de commande" avec photo du validateur principal -->
+                        <div class="wf-command-form">
+                            <div class="wf-form-header">
+                                <span class="wf-form-title">📋 Formulaire de commande</span>
+                                <div class="wf-validator-info">
+                                    <ng-container *ngIf="hasValidatorPhoto(); else validatorIconFallback">
+                                        <img [src]="getValidatorPhotoUrl()"
+                                             alt="Photo validateur"
+                                             class="wf-validator-photo">
+                                    </ng-container>
+                                    <ng-template #validatorIconFallback>
+                                        <div class="wf-validator-photo wf-validator-photo-empty">
+                                            <i class="pi pi-user wf-validator-photo-icon" aria-hidden="true"></i>
+                                        </div>
+                                    </ng-template>
+                                    <span class="wf-form-user">{{ getValidatorName() }}</span>
+                                </div>
+                            </div>
+                            <div class="wf-form-actions">
+                                <button class="wf-btn-validate">✓ Valider</button>
+                                <button class="wf-btn-reject">✗ Rejeter</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="add-etape-row">
+                        <button type="button" class="btn btn-primary" (click)="openAjouter()">
+                            ➕ {{ etapes.length === 0 ? 'Ajouter une première étape' : 'Ajouter une étape' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Paramètres -->
+                <div class="panel params-panel">
+                    <h3>PARAMÈTRES DU WORKFLOW</h3>
+
+                    <div class="param-row">
+                        <label class="switch-label">
+                            <input type="checkbox" class="switch-input" [(ngModel)]="workflowActif" (ngModelChange)="isDirty = true">
+                            <span class="switch-track"></span>
+                            <span class="switch-text">
+                                <strong>Workflow actif</strong>
+                                <small>Les plannings de ce service suivront ce circuit de validation</small>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="param-row">
+                        <label class="param-label" for="delai-defaut">
+                            <strong>Délai par défaut</strong>
+                            <small>Temps maximum pour valider une étape (en heures)</small>
+                        </label>
+                        <div class="input-group">
+                            <input id="delai-defaut" type="number" min="1" max="720"
+                                class="input-number" [(ngModel)]="delaiParDefautHeures" (ngModelChange)="isDirty = true">
+                            <span class="input-suffix">heures</span>
+                        </div>
+                    </div>
+
+                    <div class="param-row">
+                        <strong class="param-label">Règles de re-validation</strong>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" [(ngModel)]="revalidationComplete" (ngModelChange)="isDirty = true">
+                                <span>
+                                    <strong>Re-validation complète pour modification majeure</strong>
+                                    <small>Tout changement important relance l'ensemble du circuit</small>
+                                </span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" [(ngModel)]="revalidationPartielle" (ngModelChange)="isDirty = true">
+                                <span>
+                                    <strong>Re-validation partielle possible</strong>
+                                    <small>Modification mineure → dernier validateur uniquement</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div class="action-bar">
+                    <button type="button" class="btn btn-ghost" (click)="annuler()" [disabled]="isSaving">
+                        Annuler
+                    </button>
+                    <button type="button" class="btn btn-primary" (click)="enregistrer()" [disabled]="isSaving">
+                        <span *ngIf="isSaving">⏳ Enregistrement…</span>
+                        <span *ngIf="!isSaving">💾 Enregistrer</span>
+                    </button>
+                </div>
+
+            </ng-container>
+        </ng-container>
+
+        <!-- État initial -->
+        <div *ngIf="!selectedServiceId && !isLoadingServices" class="panel empty-state">
+            <span class="empty-icon">⚙️</span>
+            <h3>Sélectionnez un service</h3>
+            <p>Choisissez un service dans la liste ou cliquez sur un workflow à droite pour le modifier.</p>
+        </div>
+
+    </section>
+
+    <!-- ══ SIDEBAR : workflows enregistrés ═════════════════════════════════ -->
+    <aside class="wf-sidebar">
+
+        <div class="sidebar-header">
+            <span> WORKFLOWS ENREGISTRÉS</span>
+            <span class="sidebar-count" *ngIf="!loadingAllConfigs">{{ allConfigs.length }}</span>
+            <button type="button" class="sidebar-refresh" (click)="loadAllConfigs()"
+                    [title]="loadingAllConfigs ? 'Chargement…' : 'Rafraîchir'">
+                <span [class.spinning]="loadingAllConfigs">↺</span>
+            </button>
+        </div>
+
+        <div *ngIf="loadingAllConfigs" class="sidebar-loading">
+            ⏳ Chargement…
+        </div>
+
+        <div *ngIf="!loadingAllConfigs && allConfigs.length === 0" class="sidebar-empty">
+            <p>Aucun workflow enregistré.</p>
+            <small>Configurez un circuit et cliquez sur « Enregistrer ».</small>
+        </div>
+
+        <ul *ngIf="!loadingAllConfigs && allConfigs.length > 0" class="sidebar-list">
+            <li
+                *ngFor="let cfg of allConfigs"
+                class="sidebar-item"
+                [class.sidebar-item-active]="cfg.serviceId == selectedServiceId?.toString()"
+                (click)="selectConfig(cfg)">
+
+                <span class="sidebar-dot" [class.dot-on]="cfg.isActive" [class.dot-off]="!cfg.isActive"></span>
+
+                <div class="sidebar-item-info">
+                    <span class="sidebar-svc">{{ getServiceNameById(cfg.serviceId) }}</span>
+                    <span class="sidebar-meta">
+                        {{ cfg.steps.length }} étape(s)
+                        <span class="sidebar-badge" [class.badge-on]="cfg.isActive" [class.badge-off]="!cfg.isActive">
+                            {{ cfg.isActive ? 'Actif' : 'Inactif' }}
+                        </span>
+                    </span>
+                </div>
+
+                <div class="sidebar-actions">
+                    <button type="button" title="Modifier" (click)="selectConfig(cfg); $event.stopPropagation()">✏️</button>
+                    <button type="button" title="Activer" *ngIf="!cfg.isActive"
+                            (click)="toggleActivate(cfg, $event)">✅</button>
+                    <button type="button" title="Supprimer"
+                            (click)="deleteConfig(cfg, $event)">🗑️</button>
+                </div>
+            </li>
+        </ul>
+
+    </aside>
+
+</div>
+<!-- /wf-page-outer -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL : AJOUTER / MODIFIER UNE ÉTAPE
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="etapeForm.visible" (click)="fermerModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+        <div class="modal-header">
+            <h4>{{ etapeForm.mode === 'ajouter' ? '➕ AJOUTER UNE ÉTAPE' : '✏️ MODIFIER L\'ÉTAPE' }}</h4>
+            <button type="button" class="modal-close" (click)="fermerModal()">✖</button>
+        </div>
+
+        <div class="modal-body">
+
+            <div class="form-group" *ngIf="etapeForm.mode === 'ajouter'">
+                <label for="etape-position">Position</label>
+                <select id="etape-position" [(ngModel)]="etapeForm.position" class="form-select modern-select">
+                    <option *ngFor="let opt of positionOptions" [ngValue]="opt.value">{{ opt.label }}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="etape-role">Rôle validateur</label>
+                <select id="etape-role" [(ngModel)]="etapeForm.roleValidateur" (ngModelChange)="onRoleChange()" class="form-select modern-select">
+                    <option *ngFor="let r of ROLES" [ngValue]="r.value">{{ r.label }}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="etapeForm.validateurSpecifiqueActif">
+                    <span>Désigner une personne spécifique</span>
+                </label>
+                <ng-container *ngIf="etapeForm.validateurSpecifiqueActif">
+                    <div *ngIf="isLoadingStaff" class="loading-inline">⏳ Chargement du personnel…</div>
+                    <select *ngIf="!isLoadingStaff"
+                            title="Sélectionner une personne spécifique"
+                            aria-label="Sélectionner une personne spécifique"
+                            [(ngModel)]="etapeForm.validateurSpecifiqueId"
+                            class="form-select modern-select mt-xs">
+                        <option [ngValue]="undefined">— Sélectionner une personne —</option>
+                        <option *ngFor="let staff of staffFiltres" [ngValue]="staff.id">{{ staff.nomComplet }}</option>
+                        <ng-container *ngIf="staffFiltres.length === 0">
+                            <option disabled>Aucun utilisateur avec ce rôle</option>
+                        </ng-container>
+                    </select>
+                </ng-container>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="etapeForm.delaiSpecifiqueActif">
+                    <span>Délai spécifique pour cette étape (optionnel)</span>
+                </label>
+                <div *ngIf="etapeForm.delaiSpecifiqueActif" class="input-group mt-xs">
+                    <input type="number" min="1" max="720" class="input-number"
+                        [(ngModel)]="etapeForm.delaiMaxHeures" placeholder="24">
+                    <span class="input-suffix">heures</span>
+                </div>
+                <small class="form-hint" *ngIf="!etapeForm.delaiSpecifiqueActif">
+                    Laissez vide pour utiliser le délai par défaut ({{ delaiParDefautHeures }}h)
+                </small>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" (click)="fermerModal()">Annuler</button>
+            <button type="button" class="btn btn-primary"
+                    [disabled]="!etapeForm.roleValidateur"
+                    (click)="confirmerEtapeForm()">
+                {{ etapeForm.mode === 'ajouter' ? 'Ajouter' : 'Enregistrer' }}
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL : CONFIRMER SUPPRESSION
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" *ngIf="suppressionVisible" (click)="annulerSuppression()">
+    <div class="modal modal-sm" (click)="$event.stopPropagation()">
+        <div class="modal-header modal-header-danger">
+            <h4>⚠️ CONFIRMER LA SUPPRESSION</h4>
+            <button type="button" class="modal-close" (click)="annulerSuppression()">✖</button>
+        </div>
+        <div class="modal-body">
+            <p>Êtes-vous sûr de vouloir supprimer l'étape <strong>« {{ suppressionLabel }} »</strong> ?</p>
+            <p class="text-muted">Cette action est irréversible.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" (click)="annulerSuppression()">Annuler</button>
+            <button type="button" class="btn btn-danger" (click)="confirmerSuppression()">Oui, supprimer</button>
+        </div>
+    </div>
+</div>

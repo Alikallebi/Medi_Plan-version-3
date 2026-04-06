@@ -1,0 +1,212 @@
+<section class="mon-espace-page">
+    <header class="page-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Espace personnel</p>
+            <h1>Mon espace</h1>
+            <p class="subtitle">
+                Consultez votre planning hebdomadaire et vos compteurs personnels, du lundi au dimanche.
+            </p>
+            <div class="week-range">{{ weekLabel }}</div>
+        </div>
+
+        <div class="hero-actions">
+            <button type="button" pButton class="today-button" icon="pi pi-plus" label="Nouvelle demande" (click)="openDemandeModal()" [disabled]="isLoading"></button>
+            <button type="button" pButton class="nav-button" icon="pi pi-chevron-left" (click)="previousWeek()" [disabled]="isLoading" aria-label="Semaine précédente"></button>
+            <button type="button" pButton class="today-button" label="Aujourd’hui" (click)="goToday()" [disabled]="isLoading || isCurrentWeek()"></button>
+            <button type="button" pButton class="nav-button" icon="pi pi-chevron-right" (click)="nextWeek()" [disabled]="isLoading" aria-label="Semaine suivante"></button>
+        </div>
+    </header>
+
+    <div class="state-banner success" *ngIf="demandeSuccess">
+        <i class="pi pi-check-circle"></i>
+        <div>
+            <strong>Demande envoyée</strong>
+            <p>{{ demandeSuccess }}</p>
+        </div>
+    </div>
+
+    <section class="summary-grid">
+        <article class="summary-card rc-plus">
+            <div class="summary-icon">
+                <i class="pi pi-plus-circle"></i>
+            </div>
+            <div>
+                <span class="summary-label">RC+</span>
+                <strong>{{ formatCounterHours(counters.solde_rc_plus_heures) }}</strong>
+                <p>Heures supplémentaires disponibles</p>
+            </div>
+        </article>
+
+        <article class="summary-card rc-minus">
+            <div class="summary-icon">
+                <i class="pi pi-minus-circle"></i>
+            </div>
+            <div>
+                <span class="summary-label">RC-</span>
+                <strong>{{ formatCounterHours(counters.solde_rc_moins_heures) }}</strong>
+                <p>Heures à rattraper</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-meta">
+            <div class="summary-icon soft">
+                <i class="pi pi-calendar"></i>
+            </div>
+            <div>
+                <span class="summary-label">Semaine affichée</span>
+                <strong>{{ planningDays.length }} jours</strong>
+                <p>{{ totalAffectations }} affectations · {{ totalDemandes }} demandes</p>
+                <p class="duration-line">Durée totale: {{ getTotalDurationLabel() }}</p>
+            </div>
+        </article>
+    </section>
+
+    <div class="state-banner error" *ngIf="hasError">
+        <i class="pi pi-exclamation-triangle"></i>
+        <div>
+            <strong>Certains contenus n’ont pas pu être chargés.</strong>
+            <p *ngIf="planningError">{{ planningError }}</p>
+            <p *ngIf="countersError">{{ countersError }}</p>
+            <p *ngIf="demandeError">{{ demandeError }}</p>
+        </div>
+    </div>
+
+    <div class="state-banner loading" *ngIf="isLoading">
+        <p-progressSpinner strokeWidth="4"></p-progressSpinner>
+        <div>
+            <strong>Chargement de l’espace personnel</strong>
+            <p>Récupération du planning et des compteurs en cours.</p>
+        </div>
+    </div>
+
+    <section class="week-grid" *ngIf="!isLoading">
+        <article class="day-card" *ngFor="let day of planningDays; trackBy: trackByDay">
+            <header class="day-header">
+                <div>
+                    <p>{{ day.nomJour }}</p>
+                    <h2>{{ formatDisplayDate(day.date) }}</h2>
+                    <div class="day-primary-time">{{ getDayPrimaryTime(day) }}</div>
+                    <div class="day-meta">
+                        <span class="day-date">{{ formatShortDate(day.date) }}</span>
+                        <span class="day-time">{{ getDayScheduleSummary(day) }}</span>
+                        <span class="day-duration">Durée {{ getDayDurationLabel(day) }}</span>
+                    </div>
+                </div>
+                <span class="day-count">{{ day.affectations.length }} act. · {{ day.demandes.length }} dem.</span>
+            </header>
+
+            <button type="button" pButton class="p-button-sm p-button-outlined" icon="pi pi-plus" label="Demande" (click)="openDemandeModal(day.date)"></button>
+
+            <div class="day-block">
+                <div class="block-title">
+                    <span class="block-icon official"><i class="pi pi-briefcase"></i></span>
+                    <h3>Affectations officielles</h3>
+                </div>
+
+                <ng-container *ngIf="day.affectations.length > 0; else emptyOfficial">
+                    <div class="entry official-entry" *ngFor="let affectation of day.affectations; trackBy: trackByAffectation">
+                        <span class="entry-badge" [ngClass]="getAffectationBadgeClass(affectation)" [style.--entry-accent]="affectation.couleur || null">
+                            {{ affectation.code }}
+                        </span>
+
+                        <div class="entry-content">
+                            <strong>{{ affectation.code }} - {{ affectation.libelle }}</strong>
+                            <span>{{ formatAffectationTime(affectation) }}</span>
+                            <small>Durée {{ getAffectationDurationLabel(affectation) }}</small>
+                        </div>
+                    </div>
+                </ng-container>
+
+                <ng-template #emptyOfficial>
+                    <div class="empty-state">
+                        Aucune affectation officielle sur ce jour.
+                    </div>
+                </ng-template>
+            </div>
+
+            <div class="day-block">
+                <div class="block-title">
+                    <span class="block-icon pending"><i class="pi pi-clock"></i></span>
+                    <h3>Demandes de l’utilisateur</h3>
+                </div>
+
+                <ng-container *ngIf="day.demandes.length > 0; else emptyRequests">
+                    <div class="entry request-entry" *ngFor="let demande of day.demandes; trackBy: trackByDemande" (click)="openDemandeDetail(demande)">
+                        <span class="request-icon"><i class="pi pi-hourglass"></i></span>
+
+                        <div class="entry-content">
+                            <strong>{{ formatDemandeTitle(demande.type) }}</strong>
+                            <span>{{ (demande.heureDebut || '--:--') + ' - ' + (demande.heureFin || '--:--') }}</span>
+                            <small *ngIf="demande.commentaire">{{ demande.commentaire }}</small>
+                            <small class="rejection-note" *ngIf="demande.motifRejet">Motif du rejet: {{ demande.motifRejet }}</small>
+                        </div>
+
+                        <div class="request-actions">
+                            <span class="status-pill" [ngClass]="getDemandeStatusClass(demande.statut)">
+                                {{ getDemandeStatusLabel(demande.statut) }}
+                            </span>
+                            <button
+                                *ngIf="demande.id"
+                                type="button"
+                                pButton
+                                class="p-button-sm p-button-text"
+                                icon="pi pi-history"
+                                label="Historique"
+                                (click)="$event.stopPropagation(); toggleDemandeHistory(demande)">
+                            </button>
+                        </div>
+
+                        <div class="demande-history" *ngIf="isDemandeHistoryExpanded(demande)">
+                            <p class="history-loading" *ngIf="isDemandeHistoryLoading(demande)">Chargement de l’historique...</p>
+
+                            <ng-container *ngIf="!isDemandeHistoryLoading(demande)">
+                                <div class="history-event" *ngFor="let event of getDemandeHistory(demande)">
+                                    <div class="history-event-header">
+                                        <strong>{{ getHistoryActionLabel(event.action) }}</strong>
+                                        <span>{{ event.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                                    </div>
+                                    <p>Par: {{ getHistoryActorLabel(event) }}</p>
+                                    <p *ngIf="event.commentaire">{{ event.commentaire }}</p>
+                                </div>
+                                <p class="history-empty" *ngIf="getDemandeHistory(demande).length === 0">Aucun événement disponible.</p>
+                            </ng-container>
+                        </div>
+                    </div>
+                </ng-container>
+
+                <ng-template #emptyRequests>
+                    <div class="empty-state pending">
+                        Aucune demande sur cette journée.
+                    </div>
+                </ng-template>
+            </div>
+        </article>
+    </section>
+
+    <app-demande-modal
+        [visible]="showDemandeModal"
+        [loading]="createDemandeLoading"
+        [defaultDate]="modalDefaultDate"
+        (close)="closeDemandeModal()"
+        (submitDemande)="submitDemande($event)">
+    </app-demande-modal>
+
+    <div class="demande-detail-backdrop" *ngIf="selectedDemandeDetail" (click)="closeDemandeDetail()"></div>
+    <section class="demande-detail-modal" *ngIf="selectedDemandeDetail" role="dialog" aria-modal="true" aria-label="Détail de la demande">
+        <header>
+            <h3>Détail de la demande #{{ selectedDemandeDetail.id }}</h3>
+            <button type="button" pButton class="p-button-text" icon="pi pi-times" (click)="closeDemandeDetail()" aria-label="Fermer"></button>
+        </header>
+
+        <div class="detail-grid">
+            <div><span>Type</span><strong>{{ formatDemandeTitle(selectedDemandeDetail.type) }}</strong></div>
+            <div><span>Statut</span><strong>{{ getDemandeStatusLabel(selectedDemandeDetail.statut) }}</strong></div>
+            <div><span>Date</span><strong>{{ selectedDemandeDetail.date | date:'dd/MM/yyyy' }}</strong></div>
+            <div><span>Créneau</span><strong>{{ (selectedDemandeDetail.heureDebut || '--:--') + ' - ' + (selectedDemandeDetail.heureFin || '--:--') }}</strong></div>
+            <div><span>Envoyée à</span><strong>{{ getDemandeReceiverLabel(selectedDemandeDetail) }}</strong></div>
+            <div><span>Date validation</span><strong>{{ selectedDemandeDetail.dateValidation ? (selectedDemandeDetail.dateValidation | date:'dd/MM/yyyy HH:mm') : '-' }}</strong></div>
+            <div class="full"><span>Commentaire</span><strong>{{ selectedDemandeDetail.commentaire || '-' }}</strong></div>
+            <div class="full" *ngIf="selectedDemandeDetail.motifRejet"><span>Motif rejet</span><strong>{{ selectedDemandeDetail.motifRejet }}</strong></div>
+        </div>
+    </section>
+</section>

@@ -1,0 +1,27 @@
+.fullscreen-image-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  .fullscreen-image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .message-overlay {
+    position: absolute;
+    top: 54%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .message-overlay h2,
+  .message-overlay p {
+    font-weight: bold;
+  }
