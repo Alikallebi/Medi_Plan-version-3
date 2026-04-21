@@ -4,9 +4,10 @@ import { catchError } from 'rxjs/operators';
 import { AuthService } from 'src/app/demo/service/auth.service';
 import { MonPlanningQueryContext, MonPlanningService } from 'src/app/demo/service/mon-planning.service';
 import { Affectation, Compteurs, PlanningDay } from 'src/app/demo/models/mon-planning.model';
-import { DemandeCreatePayload, DemandeHistoriqueItem, DemandeItem } from 'src/app/demo/models/demande.model';
+import { DemandeCreatePayload, DemandeHistoriqueItem, DemandeItem, DemandeTypeDefinition } from 'src/app/demo/models/demande.model';
 import { DemandeService } from 'src/app/demo/service/demande.service';
 import { CompteurService } from 'src/app/demo/service/compteur.service';
+import { PlanningNotificationService } from 'src/app/demo/service/planning-notification.service';
 
 @Component({
     selector: 'app-mon-espace',
@@ -40,14 +41,31 @@ export class MonEspaceComponent implements OnInit {
     demandeHistoryMap: Record<string, DemandeHistoriqueItem[]> = {};
     private planningContext: MonPlanningQueryContext | null = null;
 
+    readonly defaultDemandeTypes: DemandeTypeDefinition[] = [
+        { code: 'VA', label: 'Vacances Annuelles', description: 'Congé annuel payé pris par l’employé.', color: '#0ea5e9', impact: 'neutral' },
+        { code: 'AS', label: 'Astreinte', description: 'Astreinte: l’employé est disponible en cas de besoin.', color: '#7c3aed', impact: 'positive' },
+        { code: 'AT', label: 'Arrêt de Travail', description: 'Arrêt maladie ou congé médical avec justificatif.', color: '#dc2626', impact: 'negative' },
+        { code: 'AL', label: 'Autorisation légale', description: 'Autorisation de sortie / absence légale pendant les heures de travail.', color: '#d97706', impact: 'neutral' },
+        { code: 'JR', label: 'Jour de Repos', description: 'Jour de repos sans travail planifié.', color: '#64748b', impact: 'neutral' },
+        { code: 'HS', label: 'Heures supplémentaires', description: 'Heures travaillées au-delà de l’horaire planifié.', color: '#2563eb', impact: 'positive' },
+        { code: 'RC+', label: 'Récupération positive', description: 'Utilisation d’un crédit RC+ acquis.', color: '#16a34a', impact: 'neutral' },
+        { code: 'RC-', label: 'Récupération négative', description: 'Heures à récupérer ultérieurement.', color: '#f59e0b', impact: 'negative' },
+        { code: 'ABSENCE', label: 'Absence', description: 'Absence déclarée sur un créneau planifié.', color: '#f97316', impact: 'negative' },
+        { code: 'ARRET', label: 'Arrêt', description: 'Arrêt de travail.', color: '#ef4444', impact: 'negative' }
+    ];
+    demandeTypeDefinitions: DemandeTypeDefinition[] = [...this.defaultDemandeTypes];
+
     constructor(
         private readonly authService: AuthService,
         private readonly monPlanningService: MonPlanningService,
         private readonly demandeService: DemandeService,
-        private readonly compteurService: CompteurService
+        private readonly compteurService: CompteurService,
+        private readonly planningNotificationService: PlanningNotificationService
     ) {}
 
     ngOnInit(): void {
+        this.loadDemandeTypes();
+
         const context = this.authService.getCurrentUser();
         this.userLabel = this.buildUserLabel(context?.prenom, context?.nom);
         this.planningContext = this.getPlanningContext();
@@ -82,6 +100,22 @@ export class MonEspaceComponent implements OnInit {
 
     get totalDurationMinutes(): number {
         return this.planningDays.reduce((total, day) => total + this.getDayDurationMinutes(day), 0);
+    }
+
+    get workEndHourByDate(): Record<string, string> {
+        const result: Record<string, string> = {};
+
+        for (const day of this.planningDays) {
+            const endHours = (day.affectations ?? [])
+                .map(item => this.normalizeHour(item.heureFin))
+                .filter(value => !!value);
+
+            if (endHours.length > 0) {
+                result[day.date] = this.maxHour(endHours);
+            }
+        }
+
+        return result;
     }
 
     previousWeek(): void {
@@ -149,7 +183,10 @@ export class MonEspaceComponent implements OnInit {
                 next: () => {
                     this.createDemandeLoading = false;
                     this.showDemandeModal = false;
-                    this.demandeSuccess = 'Votre demande a été enregistrée et transmise au responsable.';
+                    const normalizedType = `${payload.type ?? ''}`.trim().toUpperCase();
+                    this.demandeSuccess = normalizedType === 'AT'
+                        ? 'Votre arrêt de travail a été enregistré comme information.'
+                        : 'Votre demande a été enregistrée et transmise au responsable.';
                     this.loadPage(this.planningContext as MonPlanningQueryContext);
                     this.loadCounters(this.planningContext!.userId);
                 },
@@ -173,6 +210,30 @@ export class MonEspaceComponent implements OnInit {
         });
     }
 
+    formatDemandePeriod(demande: DemandeItem | null): string {
+        if (!demande?.date) {
+            return '-';
+        }
+
+        const start = this.fromIsoDate(demande.date).toLocaleDateString('fr-FR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+
+        if (!demande.dateFin || demande.dateFin === demande.date) {
+            return start;
+        }
+
+        const end = this.fromIsoDate(demande.dateFin).toLocaleDateString('fr-FR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+
+        return `${start} au ${end}`;
+    }
+
     formatShortDate(dateIso: string): string {
         return this.fromIsoDate(dateIso).toLocaleDateString('fr-FR', {
             day: 'numeric',
@@ -186,6 +247,30 @@ export class MonEspaceComponent implements OnInit {
 
     formatAffectationTime(affectation: Affectation): string {
         return `${affectation.heureDebut || '--:--'} - ${affectation.heureFin || '--:--'}`;
+    }
+
+    getAffectationTitle(affectation: Affectation): string {
+        const code = `${affectation.code || ''}`.trim().toUpperCase();
+        const libelle = `${affectation.libelle || ''}`.trim();
+
+        if (code === 'HS') {
+            return 'HS - Heures supplémentaires';
+        }
+
+        if (code === 'AT' || code === 'ARRET') {
+            return 'AT - Arrêt de travail';
+        }
+
+        return `${affectation.code} - ${libelle}`;
+    }
+
+    isHsAffectation(affectation: Affectation): boolean {
+        return `${affectation.code || ''}`.trim().toUpperCase() === 'HS';
+    }
+
+    isArretAffectation(affectation: Affectation): boolean {
+        const normalized = `${affectation.code || ''}`.trim().toUpperCase();
+        return normalized === 'AT' || normalized === 'ARRET';
     }
 
     getAffectationDurationLabel(affectation: Affectation): string {
@@ -242,29 +327,32 @@ export class MonEspaceComponent implements OnInit {
     }
 
     formatDemandeTitle(type: string): string {
-        const normalized = `${type ?? ''}`.trim().toUpperCase();
+        const meta = this.getDemandeTypeMeta(type);
+        return `${meta.code} - ${meta.label}`;
+    }
 
-        if (normalized === 'HS') {
-            return 'HS - Heures supplémentaires';
-        }
+    getDemandeTypeMeta(type: string): DemandeTypeDefinition {
+        const normalized = this.toDisplayCode(`${type ?? ''}`.trim().toUpperCase());
+        return this.demandeTypeDefinitions.find(item => item.code === normalized)
+            || this.defaultDemandeTypes.find(item => item.code === normalized)
+            || {
+                code: normalized as any,
+                label: normalized || 'Demande',
+                description: 'Type de demande non documenté.',
+                color: '#64748b',
+                impact: 'neutral'
+            };
+    }
 
-        if (normalized === 'RC+') {
-            return 'RC+ - Récupération positive';
-        }
+    getDemandeTypeDescription(type: string): string {
+        return this.getDemandeTypeMeta(type).description;
+    }
 
-        if (normalized === 'RC-') {
-            return 'RC- - Récupération négative';
-        }
-
-        if (normalized === 'ABSENCE') {
-            return 'Absence';
-        }
-
-        if (normalized === 'ARRET') {
-            return 'Arrêt';
-        }
-
-        return type || 'Demande';
+    getDemandeTypeBadgeStyle(type: string): Record<string, string> {
+        const meta = this.getDemandeTypeMeta(type);
+        return {
+            '--demande-type-color': meta.color
+        };
     }
 
     getDemandeStatusLabel(status: string): string {
@@ -276,6 +364,10 @@ export class MonEspaceComponent implements OnInit {
 
         if (normalized === 'rejete' || normalized === 'rejetee') {
             return 'Rejetée';
+        }
+
+        if (normalized === 'informatif' || normalized === 'info' || normalized === 'notification') {
+            return 'Informative';
         }
 
         return 'En attente';
@@ -292,7 +384,27 @@ export class MonEspaceComponent implements OnInit {
             return 'status-rejected';
         }
 
+        if (normalized === 'informatif' || normalized === 'info' || normalized === 'notification') {
+            return 'status-info';
+        }
+
         return 'status-pending';
+    }
+
+    isInformationalDemande(demande: DemandeItem | any): boolean {
+        const type = `${demande?.type ?? ''}`.trim().toUpperCase();
+        const statut = `${demande?.statut ?? ''}`.trim().toLowerCase();
+        return type === 'AT' || type === 'ARRET' || statut === 'informatif' || statut === 'info' || statut === 'notification';
+    }
+
+    getDemandeScheduleLabel(demande: any): string {
+        if (this.isInformationalDemande(demande)) {
+            return 'Information du jour';
+        }
+
+        const start = `${demande?.heureDebut ?? ''}`.trim() || '--:--';
+        const end = `${demande?.heureFin ?? ''}`.trim() || '--:--';
+        return `${start} - ${end}`;
     }
 
     getAffectationBadgeClass(affectation: Affectation): string {
@@ -321,6 +433,7 @@ export class MonEspaceComponent implements OnInit {
             userId: this.planningContext?.userId ?? 0,
             serviceId: this.planningContext?.serviceId ?? 0,
             date: `${demande.date ?? ''}`,
+            dateFin: demande.dateFin ? `${demande.dateFin}` : undefined,
             type: `${demande.type ?? ''}`,
             heureDebut: `${demande.heureDebut ?? ''}`,
             heureFin: `${demande.heureFin ?? ''}`,
@@ -346,6 +459,10 @@ export class MonEspaceComponent implements OnInit {
     getDemandeReceiverLabel(demande: DemandeItem | null): string {
         if (!demande) {
             return '-';
+        }
+
+        if (this.isInformationalDemande(demande)) {
+            return 'Créateur';
         }
 
         const byName = `${demande.valideParNom ?? ''}`.trim();
@@ -503,12 +620,21 @@ export class MonEspaceComponent implements OnInit {
 
     private mergeDemandesIntoDays(days: PlanningDay[], demandes: DemandeItem[]): PlanningDay[] {
         const grouped = new Map<string, DemandeItem[]>();
+        const daySet = new Set((days ?? []).map(day => day.date));
 
         for (const demande of demandes ?? []) {
-            const key = this.normalizeRequestDate(demande.date);
-            const existing = grouped.get(key) ?? [];
-            existing.push(demande);
-            grouped.set(key, existing);
+            const startDate = this.normalizeRequestDate(demande.date);
+            const endDate = this.normalizeRequestDate(demande.dateFin || demande.date);
+
+            for (const dateIso of this.expandDateRange(startDate, endDate)) {
+                if (!daySet.has(dateIso)) {
+                    continue;
+                }
+
+                const existing = grouped.get(dateIso) ?? [];
+                existing.push(demande);
+                grouped.set(dateIso, existing);
+            }
         }
 
         return (days ?? []).map(day => ({
@@ -639,6 +765,18 @@ export class MonEspaceComponent implements OnInit {
         return Number.isNaN(date.getTime()) ? this.toIsoDate(this.weekStart) : this.toIsoDate(date);
     }
 
+    private expandDateRange(startIso: string, endIso: string): string[] {
+        const start = this.fromIsoDate(startIso);
+        const end = this.fromIsoDate(endIso < startIso ? startIso : endIso);
+        const result: string[] = [];
+
+        for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+            result.push(this.toIsoDate(cursor));
+        }
+
+        return result;
+    }
+
     private normalizeHour(value: unknown): string {
         const text = `${value ?? ''}`.trim();
         if (/^\d{2}:\d{2}$/.test(text)) {
@@ -711,5 +849,50 @@ export class MonEspaceComponent implements OnInit {
         const hours = Math.floor(safeMinutes / 60);
         const remaining = safeMinutes % 60;
         return `${hours}h${String(remaining).padStart(2, '0')}`;
+    }
+
+    private loadDemandeTypes(): void {
+        this.demandeService.getDemandeTypes(false).subscribe({
+            next: types => {
+                const source = Array.isArray(types) && types.length > 0
+                    ? types
+                    : [...this.defaultDemandeTypes];
+                this.demandeTypeDefinitions = this.deduplicateTypeDefinitions(source);
+            },
+            error: () => {
+                this.demandeTypeDefinitions = this.deduplicateTypeDefinitions([...this.defaultDemandeTypes]);
+            }
+        });
+    }
+
+    private deduplicateTypeDefinitions(source: DemandeTypeDefinition[]): DemandeTypeDefinition[] {
+        const map = new Map<string, DemandeTypeDefinition>();
+
+        for (const item of source) {
+            const displayCode = this.toDisplayCode(item.code);
+            const existing = map.get(displayCode);
+            const candidate: DemandeTypeDefinition = displayCode === item.code
+                ? item
+                : { ...item, code: displayCode as any };
+
+            if (!existing) {
+                map.set(displayCode, candidate);
+                continue;
+            }
+
+            // Prefer canonical entries (AT) over legacy aliases (ARRET).
+            if (item.code === displayCode) {
+                map.set(displayCode, candidate);
+            }
+        }
+
+        return Array.from(map.values());
+    }
+
+    private toDisplayCode(code: string): string {
+        if (code === 'ARRET') {
+            return 'AT';
+        }
+        return code;
     }
 }

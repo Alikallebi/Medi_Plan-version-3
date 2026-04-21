@@ -1,19 +1,6 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, Router } from '@angular/router';
 import { AuthService } from '../demo/service/auth.service';
-
-/**
- * Guard basé sur les rôles
- * Vérifie si l'utilisateur a l'un des rôles autorisés
- * 
- * Utilisation dans le routing :
- * {
- *   path: 'admin',
- *   component: AdminComponent,
- *   canActivate: [RoleGuard],
- *   data: { roles: ['super-admin', 'admin-gta'] }
- * }
- */
 @Injectable({
   providedIn: 'root'
 })
@@ -38,7 +25,6 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
-    // Redirection vers une page d'accès refusé ou le dashboard
     this.router.navigate(['/access-denied']);
     return false;
   }

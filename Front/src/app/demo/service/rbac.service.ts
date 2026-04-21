@@ -114,7 +114,16 @@ export class RbacService {
     },
     'staff': {
       'dashboard.view': 'read', 'planning.view': 'read', 'outils.notifications': 'read',
+      'outils.historique': 'read', 'admin.utilisateur-detail': 'read'
     },
+  };
+
+  private static readonly STAFF_MINIMUM_PERMISSIONS: Record<string, string> = {
+    'dashboard.view': 'read',
+    'planning.view': 'read',
+    'outils.notifications': 'read',
+    'outils.historique': 'read',
+    'admin.utilisateur-detail': 'read'
   };
 
   /** Charge les permissions depuis l'API et met à jour le BehaviorSubject */
@@ -123,10 +132,11 @@ export class RbacService {
       .get<Record<string, string>>(`${this.apiUrl}/user/${userId}/permissions`)
       .pipe(catchError(() => of({} as Record<string, string>)))
       .subscribe(permissions => {
+        const roleNormalized = this.authService.getUserRole() ?? 'staff';
+
         // Si l'API retourne vide (résolution de rôle échouée côté backend),
         // utiliser le fallback basé sur le rôle normalisé de l'utilisateur.
         if (Object.keys(permissions).length === 0) {
-          const roleNormalized = this.authService.getUserRole() ?? 'staff';
           const fallback = RbacService.FALLBACK_PERMISSIONS[roleNormalized];
           if (fallback) {
             console.warn(`[RBAC] API returned empty permissions for userId=${userId} (role=${roleNormalized}). Using fallback.`);
@@ -137,6 +147,14 @@ export class RbacService {
         } else {
           console.log(`[RBAC] Loaded ${Object.keys(permissions).length} permissions for userId=${userId}`, permissions);
         }
+
+        if (roleNormalized === 'staff') {
+          permissions = {
+            ...RbacService.STAFF_MINIMUM_PERMISSIONS,
+            ...permissions
+          };
+        }
+
         this.permissionsSubject.next(permissions);
         this.loadedSubject.next(true);
       });

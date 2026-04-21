@@ -7,6 +7,7 @@ import { DashboardService, DashboardData, PlanningDataResponse } from '../../ser
 import { ServiceSelectionService } from '../../service/service-selection.service';
 import { AuthService } from '../../service/auth.service';
 import { PerimeterService, PerimeterFilter } from '../../service/perimeter.service';
+import { normalizeRole } from 'src/app/features/workflow/models/user-context.model';
 
 interface PlanningCell {
     status?: 'jour' | 'nuit' | 'garde' | 'astreinte' | 'conflit' | 'conges' | 'formation' | 'repos';
@@ -79,11 +80,6 @@ interface PersonnelAvailability {
     status: 'disponible' | 'indisponible' | 'conges' | 'formation';
     nextAvailable?: string;
     reason?: string;
-}
-
-interface WeekCandidate {
-    weekStart: Date;
-    weekEnd: Date;
 }
 
 interface CalendarAssignmentItem {
@@ -165,6 +161,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     defaultAvatar = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%25" stop-color="%230B3B5F"/><stop offset="100%25" stop-color="%232C7DA0"/></linearGradient></defs><rect width="80" height="80" rx="40" fill="url(%23g)"/><circle cx="40" cy="31" r="14" fill="%23d8e9f5"/><path d="M16 68c3-12 13-20 24-20s21 8 24 20" fill="%23d8e9f5"/></svg>';
     private draggedShift: { personId: string; placement: ShiftPlacement } | null = null;
     private readonly dayPlacementOverrides = new Map<string, ShiftPlacement>();
+    private readonly monthAssignmentsByDate = new Map<string, CalendarAssignmentItem[]>();
+    private currentPlanningServiceId: string | null = null;
+    private currentPlanningServiceName = '';
+    private currentPerimeterFilter: PerimeterFilter | null = null;
+    private loadedMonthCacheKey = '';
     
     // Gestion de l'absence de planning
     hasPlanning = true;
@@ -693,6 +694,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.planningWorkflowStatus = '';
         this.loadedPlanningWeekStart = null;
         this.loadedPlanningWeekEnd = null;
+        this.monthAssignmentsByDate.clear();
+        this.loadedMonthCacheKey = '';
+        this.currentPlanningServiceId = null;
+        this.currentPlanningServiceName = '';
+        this.currentPerimeterFilter = null;
         this.dashboardFilter = 'all'; // réinitialiser le filtre au changement de service
         
         // Obtenir le contexte utilisateur et calculer le filtre de périmètre
@@ -721,6 +727,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
                         this.isLoading = false;
                         return;
                     }
+                    this.currentPlanningServiceId = planningServiceId;
+                    this.currentPlanningServiceName = this.serviceLabel;
+                    this.currentPerimeterFilter = filter;
                     this.loadPlanningDetails(planningServiceId, this.serviceLabel);
                 },
                 error: (error) => {
@@ -741,6 +750,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     private async loadPlanningDetails(serviceId: string, serviceName: string): Promise<void> {
         console.log('🔵 Chargement du planning de la semaine courante pour serviceId:', serviceId);
+
+        // Obtenir le filtre de périmètre
+        const userContext = this.authService.getCurrentUser();
+        const filter = this.perimeterService.getPerimeterFilter(userContext);
 
         // Toujours utiliser la semaine courante (lundi au dimanche de cette semaine)
         const today = new Date();
@@ -763,43 +776,50 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.autoSelectedWeekReason = '';
         console.log('📅 Semaine courante dashboard:', fmt(weekStart), '-', fmt(weekEnd));
 
-        // Obtenir le filtre de périmètre
-        const userContext = this.authService.getCurrentUser();
-        const filter = this.perimeterService.getPerimeterFilter(userContext);
-
         try {
-            const candidates = await this.buildWeekCandidates(filter, serviceId, weekStart, weekEnd);
+            const planningData = await firstValueFrom(
+                this.dashboardService.getPlanningDataWithPerimeter(filter, serviceId, serviceName, weekStart, weekEnd)
+            );
 
-            for (const week of candidates) {
-                const planningData = await firstValueFrom(
-                    this.dashboardService.getPlanningDataWithPerimeter(filter, serviceId, serviceName, week.weekStart, week.weekEnd)
-                );
+            const assignmentsSource = planningData?.assignments;
+            const personnelSource = planningData?.personnel;
+            const assignments = Array.isArray(assignmentsSource) ? assignmentsSource : [];
+            const personnel = Array.isArray(personnelSource) ? personnelSource : [];
+            const hasAssignments = assignments.length > 0;
+            const hasPersonnel = personnel.length > 0;
+            const currentStatus = this.normalizeWorkflowStatus(planningData?.workflowStatus);
 
-                if (!planningData) {
-                    continue;
-                }
-
-                const wfStatus = this.normalizeWorkflowStatus(planningData.workflowStatus);
-
-                // Priorité absolue : afficher une semaine validée (inclut planning urgence validé super-admin).
-                if (wfStatus === 'VALIDE') {
-                    this.applyPlanningState(planningData, week.weekStart, week.weekEnd);
-                    if (this.toIsoDateOnly(week.weekStart) !== this.toIsoDateOnly(weekStart)) {
-                        this.autoSelectedWeek = true;
-                        this.autoSelectedWeekReason = 'Semaine validée automatiquement affichée';
-                    }
-                    this.isLoading = false;
-                    return;
-                }
+            if (planningData && !this.isFinalValidatedStatus(planningData.workflowStatus)) {
+                this.hasPlanning = false;
+                this.loadedPlanningWeekStart = null;
+                this.loadedPlanningWeekEnd = null;
+                this.noPlanningMessage = `Planning non affiché: statut actuel ${currentStatus || 'INCONNU'}. Le planning doit être validé par le validateur final (statut VALIDE).`;
+                this.isLoading = false;
+                return;
             }
 
-            this.hasPlanning = false;
-            this.loadedPlanningWeekStart = null;
-            this.loadedPlanningWeekEnd = null;
-            this.noPlanningMessage = `Aucun planning disponible pour "${this.serviceLabel}" cette semaine (${fmt(weekStart)} – ${fmt(weekEnd)}).`;
+            if (!planningData || (!hasAssignments && !hasPersonnel)) {
+                this.hasPlanning = false;
+                this.loadedPlanningWeekStart = null;
+                this.loadedPlanningWeekEnd = null;
+                this.noPlanningMessage = `Aucun planning disponible pour "${this.serviceLabel}" cette semaine (${fmt(weekStart)} – ${fmt(weekEnd)}).`;
+                this.isLoading = false;
+                return;
+            }
+
+            if (planningData && this.isFinalValidatedStatus(planningData.workflowStatus) && !hasAssignments) {
+                this.hasPlanning = false;
+                this.loadedPlanningWeekStart = null;
+                this.loadedPlanningWeekEnd = null;
+                this.noPlanningMessage = 'Le planning est validé, mais aucune affectation n\'est enregistrée pour cette semaine.';
+                this.isLoading = false;
+                return;
+            }
+
+            this.applyPlanningState(planningData, weekStart, weekEnd);
             this.isLoading = false;
         } catch (error) {
-            console.error('❌ Erreur chargement planning multi-semaines:', error);
+            console.error('❌ Erreur chargement planning semaine courante:', error);
             this.hasPlanning = false;
             this.loadedPlanningWeekStart = null;
             this.loadedPlanningWeekEnd = null;
@@ -808,49 +828,68 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
     }
 
-    private async buildWeekCandidates(
-        filter: PerimeterFilter,
-        serviceId: string,
-        currentWeekStart: Date,
-        currentWeekEnd: Date
-    ): Promise<WeekCandidate[]> {
-        const rows = await firstValueFrom(
-            this.dashboardService.getPlanningOverviewRowsWithPerimeter(filter, serviceId)
-        );
+    private async tryLoadLatestValidatedWeek(serviceId: string, serviceName: string, filter: PerimeterFilter): Promise<boolean> {
+        try {
+            const rows = await firstValueFrom(
+                this.dashboardService.getPlanningOverviewRowsWithPerimeter(filter, serviceId)
+            );
 
-        const byWeekKey = new Map<string, WeekCandidate>();
-        const currentKey = this.toIsoDateOnly(currentWeekStart);
-        byWeekKey.set(currentKey, {
-            weekStart: new Date(currentWeekStart),
-            weekEnd: new Date(currentWeekEnd)
-        });
-
-        for (const row of rows) {
-            const rowStartRaw = row?.weekStart;
-            if (!rowStartRaw) {
-                continue;
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return false;
             }
 
-            const rowStart = new Date(rowStartRaw);
-            if (Number.isNaN(rowStart.getTime())) {
-                continue;
+            const rowsByWeek = new Map<string, any[]>();
+            for (const row of rows) {
+                const key = String(row?.weekStart ?? '');
+                if (!rowsByWeek.has(key)) {
+                    rowsByWeek.set(key, []);
+                }
+                rowsByWeek.get(key)!.push(row);
             }
 
-            rowStart.setHours(0, 0, 0, 0);
-            const rowEnd = row?.weekEnd ? new Date(row.weekEnd) : new Date(rowStart);
-            if (Number.isNaN(rowEnd.getTime())) {
-                rowEnd.setTime(rowStart.getTime());
-            }
-            rowEnd.setHours(23, 59, 59, 999);
+            const weekCandidates = Array.from(rowsByWeek.entries())
+                .map(([weekStartKey, weekRows]) => ({
+                    weekRows,
+                    weekStart: weekRows[0]?.weekStart ? new Date(weekRows[0].weekStart) : new Date(weekStartKey),
+                    weekEnd: weekRows[0]?.weekEnd ? new Date(weekRows[0].weekEnd) : null,
+                    hasAssignments: weekRows.some(r => !!r?.assignmentId)
+                }))
+                .filter(w => !Number.isNaN(w.weekStart.getTime()) && w.hasAssignments)
+                .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
 
-            const key = this.toIsoDateOnly(rowStart);
-            if (!byWeekKey.has(key)) {
-                byWeekKey.set(key, { weekStart: rowStart, weekEnd: rowEnd });
+            if (weekCandidates.length === 0) {
+                return false;
             }
+
+            for (const target of weekCandidates) {
+                const fallbackWeekStart = new Date(target.weekStart);
+                fallbackWeekStart.setHours(0, 0, 0, 0);
+                const fallbackWeekEnd = target.weekEnd ? new Date(target.weekEnd) : new Date(fallbackWeekStart);
+                if (!target.weekEnd) {
+                    fallbackWeekEnd.setDate(fallbackWeekStart.getDate() + 6);
+                }
+                fallbackWeekEnd.setHours(23, 59, 59, 999);
+
+                const planningData = await firstValueFrom(
+                    this.dashboardService.getPlanningDataWithPerimeter(filter, serviceId, serviceName, fallbackWeekStart, fallbackWeekEnd)
+                );
+
+                const assignments = Array.isArray(planningData?.assignments) ? planningData!.assignments : [];
+                if (!planningData || !this.isFinalValidatedStatus(planningData.workflowStatus) || assignments.length === 0) {
+                    continue;
+                }
+
+                this.autoSelectedWeek = true;
+                this.autoSelectedWeekReason = 'Affichage de la dernière semaine validée contenant des affectations.';
+                this.applyPlanningState(planningData, fallbackWeekStart, fallbackWeekEnd);
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            console.error('❌ Fallback semaine validée impossible:', error);
+            return false;
         }
-
-        return Array.from(byWeekKey.values())
-            .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
     }
 
     private resolvePlanningServiceId(actualServiceId: string | undefined, filter: PerimeterFilter): string | null {
@@ -870,7 +909,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.loadedPlanningWeekStart.setHours(0, 0, 0, 0);
         this.loadedPlanningWeekEnd = new Date(weekEnd);
         this.loadedPlanningWeekEnd.setHours(23, 59, 59, 999);
-        this.selectedDate = new Date(weekStart);
+        const today = new Date();
+        this.selectedDate = this.isDateInRange(today, weekStart, weekEnd) ? new Date(today) : new Date(weekStart);
         this.weekLabel = `Semaine ${fmt(weekStart)} - ${fmt(weekEnd)}`;
 
         this.hasPlanning = true;
@@ -888,6 +928,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         } else {
             this.workflowSteps = [];
         }
+
+        this.refreshMonthPlanningCache(this.selectedDate);
     }
 
     private toIsoDateOnly(date: Date): string {
@@ -995,14 +1037,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
         });
         
         // Grouper les affectations par personnel (clés normalisées en String)
-        const assignmentsByPersonnel = new Map<string, Map<number, any>>();
+        const assignmentsByPersonnel = new Map<string, Map<number, any[]>>();
         
         planningData.assignments.forEach((assignment: any) => {
             const pid = String(assignment.personnelId);
             if (!assignmentsByPersonnel.has(pid)) {
                 assignmentsByPersonnel.set(pid, new Map());
             }
-            assignmentsByPersonnel.get(pid)!.set(Number(assignment.day), assignment);
+            const day = Number(assignment.day);
+            const dayAssignments = assignmentsByPersonnel.get(pid)!;
+            const existing = dayAssignments.get(day) || [];
+            existing.push(assignment);
+            dayAssignments.set(day, existing);
         });
         
         // Construire les lignes du planning
@@ -1016,7 +1062,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
             // Créer les 7 cellules pour chaque jour de la semaine
             const cells: PlanningCell[] = [];
             for (let day = 0; day < 7; day++) {
-                const assignment = assignmentsMap.get(day);
+                const assignments = assignmentsMap.get(day) || [];
+                const assignment = this.selectPrimaryAssignmentForDay(assignments);
                 if (assignment) {
                     const startTime = assignment.startTime || assignment.heureDebut || assignment.start || undefined;
                     const endTime = assignment.endTime || assignment.heureFin || assignment.end || undefined;
@@ -1080,6 +1127,50 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.dashboardFilter = 'all'; // reset pills quand les données du service changent
         this.planningRows = rows;
     }
+
+    private selectPrimaryAssignmentForDay(assignments: any[]): any | null {
+        if (!Array.isArray(assignments) || assignments.length === 0) {
+            return null;
+        }
+
+        const withMetadata = assignments.map(item => {
+            const startTime = String(item?.startTime || item?.heureDebut || item?.start || '').trim();
+            const startHour = this.extractHourFromValue(startTime);
+            const isHs = this.isLikelyHsAssignment(item);
+            return { item, isHs, startHour };
+        });
+
+        withMetadata.sort((left, right) => {
+            if (left.isHs !== right.isHs) {
+                return left.isHs ? 1 : -1;
+            }
+
+            const leftHour = left.startHour;
+            const rightHour = right.startHour;
+            if (leftHour !== rightHour) {
+                return leftHour - rightHour;
+            }
+
+            return 0;
+        });
+
+        return withMetadata[0]?.item || null;
+    }
+
+    private isLikelyHsAssignment(assignment: any): boolean {
+        const raw = `${assignment?.shiftType || ''} ${assignment?.posteLabel || ''} ${assignment?.note || ''}`.toLowerCase();
+        return raw.includes('hs')
+            || raw.includes('heure supp')
+            || raw.includes('suppl');
+    }
+
+    private extractHourFromValue(timeValue: string): number {
+        const match = String(timeValue || '').match(/^([01]?\d|2[0-3]):[0-5]\d$/);
+        if (!match?.[1]) {
+            return 99;
+        }
+        return Number(match[1]);
+    }
     
     private mapShiftType(shiftType: string): 'jour' | 'nuit' | 'garde' | 'astreinte' | 'conflit' | 'conges' | 'formation' | 'repos' {
         const typeMap: Record<string, any> = {
@@ -1129,6 +1220,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     private normalizeWorkflowStatus(status?: string | null): string {
         return (status || '').trim().toUpperCase();
+    }
+
+    private isFinalValidatedStatus(status?: string | null): boolean {
+        return this.normalizeWorkflowStatus(status) === 'VALIDE';
     }
 
     private isPendingValidationStatus(status?: string | null): boolean {
@@ -1301,7 +1396,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
             return false;
         }
 
-        const role = userContext.roleNormalized;
+        const role = userContext.roleNormalized || normalizeRole(userContext.role || localStorage.getItem('role') || '');
 
         // Super admin, Admin GTA : toujours visible
         if (role === 'super-admin' || role === 'admin-gta') {
@@ -1316,18 +1411,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
         // Chef de service : visible uniquement pour son propre service
         if (role === 'chef-service') {
             const selectedService = this.serviceSelectionService.getCurrentService();
+             const selectedServiceId = selectedService?.id != null ? Number(selectedService.id) : NaN;
+             const userServiceId = userContext.serviceId != null ? Number(userContext.serviceId) : NaN;
             return selectedService !== null &&
                    userContext.serviceId !== undefined &&
-                   selectedService.id === userContext.serviceId;
+                 Number.isFinite(selectedServiceId) &&
+                 Number.isFinite(userServiceId) &&
+                 selectedServiceId === userServiceId;
         }
 
         // Chef de pôle : visible si le service sélectionné appartient à son pôle
         if (role === 'chef-pole') {
             const selectedService = this.serviceSelectionService.getCurrentService();
+             const selectedPoleId = selectedService?.poleId != null ? Number(selectedService.poleId) : NaN;
+             const userPoleId = userContext.poleId != null ? Number(userContext.poleId) : NaN;
             return selectedService !== null &&
                    userContext.poleId !== undefined &&
                    selectedService.poleId !== undefined &&
-                   selectedService.poleId === userContext.poleId;
+                 Number.isFinite(selectedPoleId) &&
+                 Number.isFinite(userPoleId) &&
+                 selectedPoleId === userPoleId;
         }
 
         return false;
@@ -1545,6 +1648,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     setViewMode(mode: 'month' | 'week' | 'day'): void {
         this.activeViewMode = mode;
+        this.goToday();
+        if (mode === 'month') {
+            this.refreshMonthPlanningCache(this.selectedDate, true);
+        }
     }
 
     toggleSidebar(): void {
@@ -1561,6 +1668,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
             nextDate.setMonth(nextDate.getMonth() - 1);
         }
         this.selectedDate = nextDate;
+        if (this.activeViewMode === 'month') {
+            this.refreshMonthPlanningCache(this.selectedDate);
+        }
     }
 
     nextPeriod(): void {
@@ -1573,10 +1683,62 @@ export class DashboardComponent implements OnInit, OnDestroy {
             nextDate.setMonth(nextDate.getMonth() + 1);
         }
         this.selectedDate = nextDate;
+        if (this.activeViewMode === 'month') {
+            this.refreshMonthPlanningCache(this.selectedDate);
+        }
     }
 
     goToday(): void {
         this.selectedDate = new Date();
+        if (this.activeViewMode === 'month') {
+            this.refreshMonthPlanningCache(this.selectedDate);
+        }
+    }
+
+    get isActivePeriodEmpty(): boolean {
+        if (!this.hasPlanning) {
+            return false;
+        }
+
+        if (this.activeViewMode === 'day') {
+            return !this.hasAssignmentsForDate(this.selectedDate);
+        }
+
+        if (this.activeViewMode === 'week') {
+            const monday = this.toMonday(this.selectedDate);
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(monday);
+                date.setDate(monday.getDate() + i);
+                if (this.hasAssignmentsForDate(date)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        const monthStart = new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), 1);
+        const monthEnd = new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth() + 1, 0);
+        for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+            if (this.hasAssignmentsForDate(d)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    get noPlanningForActivePeriodMessage(): string {
+        if (this.activeViewMode === 'day') {
+            return `Aucun planning pour le jour actuel (${this.formatDateLabel(this.selectedDate)}).`;
+        }
+
+        if (this.activeViewMode === 'week') {
+            const start = this.toMonday(this.selectedDate);
+            const end = new Date(start);
+            end.setDate(start.getDate() + 6);
+            return `Aucun planning pour la semaine actuelle (${this.formatDateLabel(start)} - ${this.formatDateLabel(end)}).`;
+        }
+
+        return `Aucun planning pour le mois actuel (${this.formatMonthLabel(this.selectedDate)}).`;
     }
 
     openDayDetail(day: CalendarMonthCell): void {
@@ -1594,6 +1756,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     private buildAssignmentsForDate(date: Date): CalendarAssignmentItem[] {
+        const monthDateKey = this.toIsoDateOnly(date);
+        if (this.monthAssignmentsByDate.has(monthDateKey)) {
+            return this.filterMonthItems(this.monthAssignmentsByDate.get(monthDateKey) || []);
+        }
+
         if (!this.isDateWithinLoadedPlanningWeek(date)) {
             return [];
         }
@@ -1656,17 +1823,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     getShiftsForDay(day: CalendarMonthCell): DayShiftGroups {
-        if (!this.isDateWithinLoadedPlanningWeek(day.date)) {
-            return {
-                morning: [],
-                afternoon: [],
-                night: [],
-                special: []
-            };
-        }
-
-        const dayIndex = this.getDateDayIndex(day.date);
-        const normalizedQuery = this.searchQuery.trim().toLowerCase();
+        const dayItems = this.buildAssignmentsForDate(day.date);
         const groups: DayShiftGroups = {
             morning: [],
             afternoon: [],
@@ -1674,37 +1831,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
             special: []
         };
 
-        this.filteredPlanningRows
-            .filter(row => {
-                if (!normalizedQuery) {
-                    return true;
-                }
-                const joined = `${row.name} ${row.role} ${row.specialty}`.toLowerCase();
-                return joined.includes(normalizedQuery);
-            })
-            .forEach(row => {
-                const slot = row.cells[dayIndex];
-                if (!slot?.status) {
-                    return;
-                }
-
-                const status = slot.status;
-                const shortName = this.compactPersonnelName(row.name);
-                const timeRange = this.getSlotTimeRange(slot);
-                const label = `${this.getStatusLabel(status)} - ${shortName}`;
-                const placement = this.resolveSlotPlacement(slot as DayTimelineSlot, row.id, dayIndex);
-
-                const item: CalendarAssignmentItem = {
-                    status,
-                    label,
-                    personnel: row.name,
-                    tooltip: `${row.name} - ${slot.note || this.getStatusLabel(status)}`,
-                    timeRange,
-                    specialty: row.specialty || row.role
-                };
-
-                groups[placement].push(item);
-            });
+        dayItems.forEach(item => {
+            const placement = this.resolvePlacementFromItem(item);
+            groups[placement].push(item);
+        });
 
         return groups;
     }
@@ -1956,5 +2086,205 @@ export class DashboardComponent implements OnInit, OnDestroy {
         d.setDate(d.getDate() + diff);
         d.setHours(0, 0, 0, 0);
         return d;
+    }
+
+    private refreshMonthPlanningCache(anchorDate: Date, forceReload = false): void {
+        if (!this.currentPlanningServiceId || !this.currentPerimeterFilter) {
+            return;
+        }
+
+        const key = `${this.currentPlanningServiceId}:${anchorDate.getFullYear()}-${String(anchorDate.getMonth() + 1).padStart(2, '0')}`;
+        if (!forceReload && this.loadedMonthCacheKey === key) {
+            return;
+        }
+
+        void this.loadValidatedMonthPlanning(
+            this.currentPlanningServiceId,
+            this.currentPlanningServiceName || this.serviceLabel,
+            this.currentPerimeterFilter,
+            anchorDate,
+            key
+        );
+    }
+
+    private async loadValidatedMonthPlanning(
+        serviceId: string,
+        serviceName: string,
+        filter: PerimeterFilter,
+        anchorDate: Date,
+        cacheKey: string
+    ): Promise<void> {
+        const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+        monthStart.setHours(0, 0, 0, 0);
+        const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
+
+        try {
+            const overviewRows = await firstValueFrom(
+                this.dashboardService.getPlanningOverviewRowsWithPerimeter(filter, serviceId)
+            );
+
+            const weekTargets = this.extractValidatedWeeksForMonth(overviewRows, monthStart, monthEnd);
+            const nextMap = new Map<string, CalendarAssignmentItem[]>();
+
+            for (const week of weekTargets) {
+                const planningData = await firstValueFrom(
+                    this.dashboardService.getPlanningDataWithPerimeter(filter, serviceId, serviceName, week.weekStart, week.weekEnd)
+                );
+
+                if (!planningData || !this.isFinalValidatedStatus(planningData.workflowStatus)) {
+                    continue;
+                }
+
+                const weekStart = new Date(planningData.weekStart || week.weekStart);
+                weekStart.setHours(0, 0, 0, 0);
+                const personnelById = new Map<string, any>();
+                (planningData.personnel || []).forEach(p => personnelById.set(String(p.id), p));
+
+                (planningData.assignments || []).forEach(assignment => {
+                    const date = new Date(weekStart);
+                    date.setDate(weekStart.getDate() + Number(assignment.day || 0));
+                    date.setHours(12, 0, 0, 0);
+
+                    if (date < monthStart || date > monthEnd) {
+                        return;
+                    }
+
+                    const person = personnelById.get(String(assignment.personnelId));
+                    const personName = person ? `${person.prenom || ''} ${person.nom || ''}`.trim() : String(assignment.personnelId || 'Personnel');
+                    const shiftStatus = this.mapShiftType(String(assignment.shiftType || 'jour'));
+                    const timeRange = assignment.startTime && assignment.endTime
+                        ? `${assignment.startTime} - ${assignment.endTime}`
+                        : undefined;
+                    const specialty = person?.specialite || person?.specialty || person?.poste || '';
+
+                    const item: CalendarAssignmentItem = {
+                        status: shiftStatus,
+                        label: `${this.getStatusLabel(shiftStatus)} - ${this.compactPersonnelName(personName)}`,
+                        personnel: personName,
+                        tooltip: `${personName} - ${assignment.posteLabel || assignment.note || this.getDefaultNote(String(assignment.shiftType || 'jour'))}`,
+                        timeRange,
+                        specialty
+                    };
+
+                    const dateKey = this.toIsoDateOnly(date);
+                    const list = nextMap.get(dateKey) || [];
+                    list.push(item);
+                    nextMap.set(dateKey, list);
+                });
+            }
+
+            this.monthAssignmentsByDate.clear();
+            nextMap.forEach((items, key) => this.monthAssignmentsByDate.set(key, items));
+            this.loadedMonthCacheKey = cacheKey;
+        } catch (error) {
+            console.error('❌ Erreur chargement planning mensuel validé:', error);
+            this.monthAssignmentsByDate.clear();
+            this.loadedMonthCacheKey = cacheKey;
+        }
+    }
+
+    private extractValidatedWeeksForMonth(rows: any[], monthStart: Date, monthEnd: Date): { weekStart: Date; weekEnd: Date }[] {
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return [];
+        }
+
+        const weekMap = new Map<string, { weekStart: Date; weekEnd: Date; hasAssignments: boolean }>();
+        rows.forEach(row => {
+            const weekStart = new Date(row?.weekStart);
+            const weekEnd = row?.weekEnd ? new Date(row.weekEnd) : new Date(weekStart);
+            if (Number.isNaN(weekStart.getTime()) || Number.isNaN(weekEnd.getTime())) {
+                return;
+            }
+
+            weekStart.setHours(0, 0, 0, 0);
+            weekEnd.setHours(23, 59, 59, 999);
+
+            if (weekEnd < monthStart || weekStart > monthEnd) {
+                return;
+            }
+
+            const key = `${this.toIsoDateOnly(weekStart)}_${this.toIsoDateOnly(weekEnd)}`;
+            const existing = weekMap.get(key);
+            const hasAssignment = !!row?.assignmentId;
+            if (!existing) {
+                weekMap.set(key, { weekStart, weekEnd, hasAssignments: hasAssignment });
+            } else if (hasAssignment) {
+                existing.hasAssignments = true;
+            }
+        });
+
+        return Array.from(weekMap.values())
+            .filter(w => w.hasAssignments)
+            .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
+            .map(w => ({ weekStart: w.weekStart, weekEnd: w.weekEnd }));
+    }
+
+    private filterMonthItems(items: CalendarAssignmentItem[]): CalendarAssignmentItem[] {
+        const activeFilter = this.dashboardFilter.toLowerCase();
+        const normalizedQuery = this.searchQuery.trim().toLowerCase();
+
+        return items.filter(item => {
+            const specialty = (item.specialty || '').toLowerCase();
+            if (activeFilter !== 'all' && specialty !== activeFilter) {
+                return false;
+            }
+
+            if (!normalizedQuery) {
+                return true;
+            }
+
+            const haystack = `${item.personnel} ${item.label} ${item.specialty || ''}`.toLowerCase();
+            return haystack.includes(normalizedQuery);
+        });
+    }
+
+    private resolvePlacementFromItem(item: CalendarAssignmentItem): ShiftPlacement {
+        const slot: DayTimelineSlot = {
+            status: item.status,
+            note: item.label,
+            timeRange: item.timeRange
+        };
+        return this.resolveSlotPlacement(slot);
+    }
+
+    private hasAssignmentsForDate(date: Date): boolean {
+        const monthDateKey = this.toIsoDateOnly(date);
+        const monthItems = this.monthAssignmentsByDate.get(monthDateKey);
+        if (monthItems && this.filterMonthItems(monthItems).length > 0) {
+            return true;
+        }
+
+        if (!this.isDateWithinLoadedPlanningWeek(date)) {
+            return false;
+        }
+
+        const dayIndex = this.getDateDayIndex(date);
+        return this.filteredPlanningRows.some(row => !!row.cells[dayIndex]?.status);
+    }
+
+    private formatDateLabel(date: Date): string {
+        return new Intl.DateTimeFormat('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        }).format(date);
+    }
+
+    private formatMonthLabel(date: Date): string {
+        return new Intl.DateTimeFormat('fr-FR', {
+            month: 'long',
+            year: 'numeric'
+        }).format(date);
+    }
+
+    private isDateInRange(date: Date, start: Date, end: Date): boolean {
+        const candidate = new Date(date);
+        candidate.setHours(12, 0, 0, 0);
+        const rangeStart = new Date(start);
+        rangeStart.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(end);
+        rangeEnd.setHours(23, 59, 59, 999);
+        return candidate >= rangeStart && candidate <= rangeEnd;
     }
 }

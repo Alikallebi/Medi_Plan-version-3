@@ -27,7 +27,6 @@ export class AppMenuComponent implements OnInit, OnDestroy {
     ngOnInit() {
         this.role = localStorage.getItem('role');
         this.buildModel();
-        // Reconstruction du menu à chaque mise à jour des permissions RBAC
         this.permSub = this.rbac.permissions$.subscribe(() => this.buildModel());
     }
 
@@ -131,11 +130,6 @@ export class AppMenuComponent implements OnInit, OnDestroy {
                 ]
             }
         ];
-    }
-
-    private isAdminRole(): boolean {
-        const normalized = `${this.role || ''}`.toLowerCase().replace(/_/g, '-');
-        return normalized === 'super-admin' || normalized === 'admin-gta';
     }
 
     logout(): void {

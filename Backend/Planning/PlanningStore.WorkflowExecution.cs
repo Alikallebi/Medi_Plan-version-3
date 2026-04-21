@@ -1164,7 +1164,7 @@ VALUES (@weekId, @etape, @validateurId, @validateurNom, @action, @commentaire, @
 
     private static async Task InsertNotificationAsync(
         MySqlConnection conn, int userId, string type, string titre, string message,
-        int planningWeekId, int? emetteurId, string? lien, MySqlTransaction tx)
+        int? planningWeekId, int? emetteurId, string? lien, MySqlTransaction tx)
     {
         const string sql = @"
 INSERT INTO notifications (user_id, type, titre, message, planning_id, planning_week_id, emetteur_id, lien, date_creation)
@@ -1174,12 +1174,30 @@ VALUES (@userId, @type, @titre, @message, @planningId, @planningWeekId, @emetteu
         cmd.Parameters.AddWithValue("@type", type);
         cmd.Parameters.AddWithValue("@titre", titre);
         cmd.Parameters.AddWithValue("@message", message);
-        cmd.Parameters.AddWithValue("@planningId", planningWeekId);  // planning_id = même que planning_week_id
-        cmd.Parameters.AddWithValue("@planningWeekId", planningWeekId);
+        cmd.Parameters.AddWithValue("@planningId", planningWeekId.HasValue ? planningWeekId.Value : DBNull.Value);  // planning_id = même que planning_week_id
+        cmd.Parameters.AddWithValue("@planningWeekId", planningWeekId.HasValue ? planningWeekId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@emetteurId", emetteurId.HasValue ? emetteurId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@lien", lien ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> CreateArretNotificationAsync(
+        int recipientUserId,
+        string title,
+        string message,
+        int? planningWeekId,
+        int? emetteurId = null,
+        string? lien = null)
+    {
+        await using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var tx = await connection.BeginTransactionAsync();
+
+        await InsertNotificationAsync(connection, recipientUserId, "ARRET_INFO", title, message, planningWeekId, emetteurId, lien, (MySqlTransaction)tx);
+
+        await tx.CommitAsync();
+        return true;
     }
 
     private static async Task UpdatePlanningNotificationAfterActionAsync(

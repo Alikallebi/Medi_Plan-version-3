@@ -70,6 +70,125 @@
     }
 }
 
+.type-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.type-picker-label {
+    font-size: 0.84rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+.type-chip-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.type-chip {
+    --type-color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    text-align: left;
+    border: 1px solid color-mix(in srgb, var(--type-color) 45%, white);
+    background: color-mix(in srgb, var(--type-color) 10%, white);
+    color: #1f2937;
+    border-radius: 12px;
+    padding: 0.55rem 0.6rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.type-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.type-chip.active {
+    border-color: var(--type-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--type-color) 25%, white);
+}
+
+.type-chip-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.35rem;
+    padding: 0.25rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ffffff;
+    background: var(--type-color);
+}
+
+.type-chip-label {
+    font-size: 0.83rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.type-description {
+    border: 1px solid #dbe7f3;
+    border-radius: 12px;
+    background: #f8fbff;
+    padding: 0.6rem 0.7rem;
+}
+
+.type-description-title {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: #0f172a;
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.type-description p {
+    margin: 0;
+    color: #475569;
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.checkbox-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.55rem;
+
+    input[type='checkbox'] {
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+        padding: 0;
+    }
+
+    span {
+        margin: 0;
+        font-weight: 500;
+        color: #334155;
+    }
+}
+
+.info-panel {
+    border: 1px solid #dbe7f3;
+    border-radius: 10px;
+    background: #f8fbff;
+    color: #1e293b;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.86rem;
+    line-height: 1.4;
+
+    small {
+        display: block;
+        margin-top: 0.3rem;
+        color: #64748b;
+    }
+}
+
 .validation-error {
     margin: 0.75rem 0 0;
     color: #b91c1c;
@@ -78,6 +197,10 @@
 
 @media (max-width: 720px) {
     .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .type-chip-grid {
         grid-template-columns: 1fr;
     }
 }

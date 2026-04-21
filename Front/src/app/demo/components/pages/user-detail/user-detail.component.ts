@@ -4,6 +4,7 @@ import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { combineLatest } from 'rxjs';
 import { StaffService } from 'src/app/demo/service/staff.service';
+import { AuthService } from 'src/app/demo/service/auth.service';
 
 // Interfaces
 interface Role {
@@ -100,6 +101,11 @@ interface User {
   ancieneteMois: number;
 }
 
+interface PasswordForm {
+  password: string;
+  confirmPassword: string;
+}
+
 @Component({
   selector: 'app-user-detail',
   templateUrl: './user-detail.component.html',
@@ -108,6 +114,8 @@ interface User {
 })
 export class UserDetailComponent implements OnInit {
   private static readonly MAX_PROFILE_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
+  private static readonly SUPER_ADMIN_EMAIL = 'admin@hopital.fr';
+  private static readonly SUPER_ADMIN_WHATSAPP = '23448595';
 
   user: User;
   roles: Role[] = [];
@@ -129,6 +137,7 @@ export class UserDetailComponent implements OnInit {
   planningFilter: string = 'thisMonth';
   planningStatusFilter: string = 'all';
   historyTypeFilter: string = 'all';
+  planningViewMode: 'month' | 'week' = 'month';
 
   // Planning state
   currentPlanningMonth: Date = new Date();
@@ -169,25 +178,36 @@ export class UserDetailComponent implements OnInit {
     { label: 'Plannings', value: 'planning' }
   ];
   resetPasswordOption: string = 'sendEmail';
+  staffPasswordForm: PasswordForm = { password: '', confirmPassword: '' };
+  changingPassword = false;
+  private currentUserRole = '';
+  private currentUserId: number | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private messageService: MessageService,
     private dialogService: DialogService,
-    private staffService: StaffService
+    private staffService: StaffService,
+    private authService: AuthService
   ) {
     this.user = this.getDummyUser();
   }
 
   ngOnInit(): void {
+    this.refreshViewerContext();
     this.loadAffectationCatalogs();
     combineLatest([
       this.route.paramMap,
       this.route.parent?.paramMap ?? this.route.paramMap
     ]).subscribe(([params, parentParams]) => {
+      this.refreshViewerContext();
       const userId = params.get('id') ?? parentParams.get('id');
       if (!userId) {
+        if (this.isStaffViewer() && this.currentUserId) {
+          this.router.navigate(['/pages/utilisateurs', this.currentUserId], { replaceUrl: true });
+          return;
+        }
         this.applyFallbackData();
         return;
       }
@@ -218,6 +238,16 @@ export class UserDetailComponent implements OnInit {
 
   loadUserData(userId: string): void {
     const numericId = Number(userId);
+
+    if (this.isStaffViewer() && this.currentUserId && numericId !== this.currentUserId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Accès limité',
+        detail: 'Le rôle STAFF peut consulter uniquement son propre compte.'
+      });
+      this.router.navigate(['/pages/utilisateurs', this.currentUserId], { replaceUrl: true });
+      return;
+    }
 
     const selectedUser = history.state?.selectedUser;
     if (selectedUser?.id && selectedUser.id.toString() === userId.toString()) {
@@ -609,6 +639,10 @@ export class UserDetailComponent implements OnInit {
 
   // Actions
   editUser(): void {
+    if (!this.canEditUser()) {
+      return;
+    }
+
     const userId = Number(this.user?.id);
     if (!Number.isFinite(userId) || userId <= 0) {
       this.messageService.add({ severity: 'error', summary: 'Erreur', detail: 'Utilisateur invalide' });
@@ -621,14 +655,70 @@ export class UserDetailComponent implements OnInit {
   }
 
   sendEmail(): void {
-    this.messageService.add({ severity: 'info', summary: 'Email envoyé', detail: 'Un email a été envoyé à ' + this.user.email });
+    if (this.isStaffViewer()) {
+      const text = encodeURIComponent(`Bonjour Super Admin, je suis ${this.user.prenom} ${this.user.nom} et j'ai besoin d'assistance sur mon compte.`);
+      window.open(`https://wa.me/${UserDetailComponent.SUPER_ADMIN_WHATSAPP}?text=${text}`, '_blank');
+      this.messageService.add({
+        severity: 'info',
+        summary: 'WhatsApp Super Admin',
+        detail: `Ouverture de WhatsApp vers ${UserDetailComponent.SUPER_ADMIN_WHATSAPP}.`
+      });
+      return;
+    }
+
+    window.location.href = `mailto:${this.user.email}`;
+    this.messageService.add({ severity: 'info', summary: 'Email', detail: `Ouverture du client mail vers ${this.user.email}.` });
   }
 
   resetPassword(): void {
+    this.staffPasswordForm = { password: '', confirmPassword: '' };
     this.showResetPasswordModal = true;
   }
 
   confirmResetPassword(): void {
+    if (this.isStaffViewer()) {
+      const password = this.staffPasswordForm.password.trim();
+      const confirmPassword = this.staffPasswordForm.confirmPassword.trim();
+
+      if (!this.user.email) {
+        this.showError('Email utilisateur introuvable pour modifier le mot de passe.');
+        return;
+      }
+
+      if (password.length < 8) {
+        this.showError('Le mot de passe doit contenir au moins 8 caractères.');
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        this.showError('Les mots de passe ne correspondent pas.');
+        return;
+      }
+
+      this.changingPassword = true;
+      this.staffService.resetPassword({
+        email: this.user.email,
+        password,
+        confirm_password: confirmPassword
+      }).subscribe({
+        next: () => {
+          this.changingPassword = false;
+          this.showResetPasswordModal = false;
+          this.staffPasswordForm = { password: '', confirmPassword: '' };
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Mot de passe modifié',
+            detail: 'Votre mot de passe a été mis à jour avec succès.'
+          });
+        },
+        error: () => {
+          this.changingPassword = false;
+          this.showError('Impossible de modifier le mot de passe.');
+        }
+      });
+      return;
+    }
+
     if (this.resetPasswordOption === 'sendEmail') {
       this.messageService.add({ severity: 'success', summary: 'Succès', detail: 'Email de réinitialisation envoyé' });
     } else {
@@ -638,6 +728,15 @@ export class UserDetailComponent implements OnInit {
   }
 
   deactivateAccount(): void {
+    if (!this.canDeactivateUser()) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Action non autorisée',
+        detail: 'Le rôle STAFF ne peut pas désactiver un compte.'
+      });
+      return;
+    }
+
     this.showDeactivateModal = true;
   }
 
@@ -726,7 +825,17 @@ export class UserDetailComponent implements OnInit {
   }
 
   viewPlanning(): void {
-    this.router.navigate(['/pages/planning']);
+    this.activeTab = 3;
+    this.planningViewMode = 'week';
+    this.currentPlanningMonth = new Date();
+
+    if (this.filteredPlannings.length === 0) {
+      this.messageService.add({
+        severity: 'info',
+        summary: 'Planning hebdomadaire',
+        detail: 'Aucun planning disponible pour cette semaine.'
+      });
+    }
   }
 
   exportHistory(): void {
@@ -766,8 +875,27 @@ export class UserDetailComponent implements OnInit {
     this.showDeactivateModal = false;
   }
 
+  isStaffViewer(): boolean {
+    return this.currentUserRole === 'staff';
+  }
+
+  canEditUser(): boolean {
+    return !this.isStaffViewer();
+  }
+
+  canDeactivateUser(): boolean {
+    return !this.isStaffViewer();
+  }
+
+  getResetPasswordLabel(): string {
+    return this.isStaffViewer() ? 'Modifier MDP' : 'Réinitialiser MDP';
+  }
+
   setActiveTab(index: number): void {
     this.activeTab = index;
+    if (index !== 3) {
+      this.planningViewMode = 'month';
+    }
   }
 
   setActiveSubTab(index: number): void {
@@ -827,6 +955,63 @@ export class UserDetailComponent implements OnInit {
 
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private refreshViewerContext(): void {
+    const roleFromContext = (this.authService.getUserRole() || '').trim().toLowerCase();
+    const roleFromStorage = (localStorage.getItem('role') || '').trim().toLowerCase().replace(/_/g, '-');
+    this.currentUserRole = roleFromContext || roleFromStorage;
+
+    const fromContext = this.authService.getUserId();
+    const fromStorage = Number(localStorage.getItem('idUser') || '0');
+    this.currentUserId = fromContext || (Number.isFinite(fromStorage) && fromStorage > 0 ? fromStorage : null);
+  }
+
+  private getCurrentWeekStartIso(): string {
+    const today = new Date();
+    const day = today.getDay();
+    const mondayDelta = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayDelta);
+    monday.setHours(0, 0, 0, 0);
+
+    const y = monday.getFullYear();
+    const m = String(monday.getMonth() + 1).padStart(2, '0');
+    const d = String(monday.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  get currentWeekLabel(): string {
+    const { start, end } = this.getCurrentWeekRange();
+    const f = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    return `${f(start)} - ${f(end)}`;
+  }
+
+  get planningEmptyLabel(): string {
+    return this.planningViewMode === 'week'
+      ? 'Aucun planning pour cette semaine'
+      : 'Aucun planning pour ce mois';
+  }
+
+  setPlanningViewMode(mode: 'month' | 'week'): void {
+    this.planningViewMode = mode;
+    if (mode === 'week') {
+      this.currentPlanningMonth = new Date();
+    }
+  }
+
+  private getCurrentWeekRange(): { start: Date; end: Date } {
+    const today = new Date();
+    const day = today.getDay();
+    const mondayDelta = day === 0 ? -6 : 1 - day;
+    const start = new Date(today);
+    start.setDate(today.getDate() + mondayDelta);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   private resizeImageToDataUrl(file: File, maxPx = 256, quality = 0.75): Promise<string> {
@@ -1026,9 +1211,23 @@ export class UserDetailComponent implements OnInit {
   get filteredPlannings(): Planning[] {
     return this.plannings.filter(p => {
       const d = new Date(p.date);
+
+      if (this.planningViewMode === 'week') {
+        const { start, end } = this.getCurrentWeekRange();
+        return d >= start && d <= end;
+      }
+
       return d.getFullYear() === this.currentPlanningMonth.getFullYear()
         && d.getMonth() === this.currentPlanningMonth.getMonth();
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  private showError(detail: string): void {
+    this.messageService.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail
+    });
   }
 
   prevMonth(): void {

@@ -53,6 +53,10 @@ export class NotificationsComponent implements OnInit, OnDestroy {
     return this.notifications.filter(n => !n.isRead).length;
   }
 
+  isInfoOnlyNotification(type: WorkflowNotification['type']): boolean {
+    return type === 'ARRET_INFO';
+  }
+
   onUnreadOnlyChange(event: Event): void {
     const target = event.target as HTMLInputElement | null;
     this.unreadOnly = !!target?.checked;
@@ -112,6 +116,7 @@ export class NotificationsComponent implements OnInit, OnDestroy {
         return 'urgent';
       case 'WORKFLOW_REMINDER':
       case 'VERSION_CREATED':
+      case 'ARRET_INFO':
         return 'info';
       default:
         return 'default';
@@ -132,6 +137,8 @@ export class NotificationsComponent implements OnInit, OnDestroy {
       case 'WORKFLOW_REVISION':
       case 'WORKFLOW_MODIFICATION_REQUESTED':
         return 'pi pi-pencil';
+      case 'ARRET_INFO':
+        return 'pi pi-info-circle';
       case 'VERSION_CREATED':
         return 'pi pi-file';
       case 'WORKFLOW_REMINDER':
@@ -153,6 +160,7 @@ export class NotificationsComponent implements OnInit, OnDestroy {
         return 'Action: Modif demandée';
       case 'WORKFLOW_SOUMIS':
       case 'WORKFLOW_SUBMITTED':
+      case 'ARRET_INFO':
         return 'Action: En attente';
       default:
         return 'Action: Information';
@@ -172,6 +180,7 @@ export class NotificationsComponent implements OnInit, OnDestroy {
         return 'action-warning';
       case 'WORKFLOW_SOUMIS':
       case 'WORKFLOW_SUBMITTED':
+      case 'ARRET_INFO':
         return 'action-pending';
       default:
         return 'action-info';

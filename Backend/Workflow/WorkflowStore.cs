@@ -462,29 +462,21 @@ public class WorkflowStore
         // Récupérer les utilisateurs ayant ce rôle depuis la base de données
         var users = await _staffStore.GetAllAsync();
         
-        // Mapping des rôles avec toutes les variantes possibles (underscore, hyphen, case)
+        // Mapping des rôles vers le catalogue canonique de l'application.
+        // Les variantes historiques sont conservées comme alias d'entrée, mais
+        // chaque rôle résout toujours vers l'un des quatre rôles supportés.
         var roleMapping = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
-            // Validateur RH - plusieurs variantes
-            ["validateur-rh"] = new[] { "validateur-rh", "validateur_rh", "Validateur RH", "RH", "Admin RH", "rh", "VALIDATEUR_RH", "ADMIN_RH", "admin_rh" },
-            ["admin_rh"] = new[] { "validateur-rh", "validateur_rh", "Validateur RH", "RH", "Admin RH", "rh", "VALIDATEUR_RH", "ADMIN_RH", "admin_rh" },
-            ["planificateur-rh"] = new[] { "planificateur-rh", "planificateur_rh", "Planificateur RH", "PLANIFICATEUR_RH", "VALIDATEUR_RH", "validateur-rh", "Admin RH", "admin_rh", "RH", "rh" },
-            
-            // Super Admin - plusieurs variantes
-            ["super-admin"] = new[] { "super-admin", "super_admin", "Super Admin", "Administrateur", "superadmin", "SUPER_ADMIN", "super_admin" },
-            ["super_admin"] = new[] { "super-admin", "super_admin", "Super Admin", "Administrateur", "superadmin", "SUPER_ADMIN", "super-admin" },
-            
-            // Admin GTA - plusieurs variantes
-            ["admin-gta"] = new[] { "admin-gta", "admin_gta", "Admin GTA", "GTA", "ADMIN_GTA", "admin_gta" },
-            ["admin_gta"] = new[] { "admin-gta", "admin_gta", "Admin GTA", "GTA", "ADMIN_GTA", "admin-gta" },
-            
-            // Chef Service - plusieurs variantes
-            ["chef-service"] = new[] { "chef-service", "chef_service", "Chef Service", "CHEF_SERVICE", "CHEF DE SERVICE", "chef_service" },
-            ["chef_service"] = new[] { "chef-service", "chef_service", "Chef Service", "CHEF_SERVICE", "CHEF DE SERVICE", "chef-service" },
-            
-            // Chef Pole - plusieurs variantes
-            ["chef-pole"] = new[] { "chef-pole", "chef_pole", "Chef Pole", "CHEF_POLE", "CHEF DE POLE", "chef_pole" },
-            ["chef_pole"] = new[] { "chef-pole", "chef_pole", "Chef Pole", "CHEF_POLE", "CHEF DE POLE", "chef-pole" }
+            ["super-admin"] = new[] { "super-admin", "super_admin", "superadmin", "Super Admin", "SUPER_ADMIN", "SUPERADMIN", "SuperAdmin", "Administrateur" },
+            ["super_admin"] = new[] { "super-admin", "super_admin", "superadmin", "Super Admin", "SUPER_ADMIN", "SUPERADMIN", "SuperAdmin", "Administrateur" },
+
+            ["chef-pole"] = new[] { "chef-pole", "chef_pole", "Chef de Pôle", "Chef de Pole", "CHEF_POLE", "CHEF_DE_POLE", "CHEF-POLE", "CHEF DE POLE" },
+            ["chef_pole"] = new[] { "chef-pole", "chef_pole", "Chef de Pôle", "Chef de Pole", "CHEF_POLE", "CHEF_DE_POLE", "CHEF-POLE", "CHEF DE POLE" },
+
+            ["chef-service"] = new[] { "chef-service", "chef_service", "Chef de Service", "CHEF_SERVICE", "CHEF_DE_SERVICE", "CHEF", "CHEF DE SERVICE" },
+            ["chef_service"] = new[] { "chef-service", "chef_service", "Chef de Service", "CHEF_SERVICE", "CHEF_DE_SERVICE", "CHEF", "CHEF DE SERVICE" },
+
+            ["staff"] = new[] { "staff", "Staff", "STAFF", "Praticien", "PRATICIEN", "Infirmier", "INFIRMIER", "Cadre", "CADRE", "Validateur RH", "VALIDATEUR_RH", "Admin RH", "ADMIN_RH", "Planificateur RH", "PLANIFICATEUR_RH", "Planificateur urgence", "PLANIFICATEUR_URGENCE", "Superviseur internes", "SUPERVISEUR_INTERNES", "ADMIN_GTA", "Admin GTA", "ADMIN" }
         };
 
         // Normaliser le rôle pour la recherche
@@ -546,7 +538,6 @@ public class WorkflowStore
         string? operationContext = null)
     {
         var planningId = _nextPlanningId++;
-
         var newPlanning = new PlanningWorkflow
         {
             Id = planningId,

@@ -75,19 +75,17 @@ ORDER BY c.display_order, p.display_order;";
 
             return normalized switch
             {
-                "CHEF_DE_POLE" or "CHEF_POLE" => "Chef de Pôle",
-                "CHEF_DE_SERVICE" or "CHEF_SERVICE" or "CHEF" => "CHEF",
-                "VALIDATEUR_RH" or "ADMIN_RH" or "RH" => "Validateur RH",
-                "PLANIFICATEUR_RH" => "Planificateur RH",
-                "SUPERVISEUR" or "SUPERVISEUR_INTERNE" or "SUPERVISEUR_INTERNES" => "Superviseur internes",
-                "PLANIFICATEUR_URGENCE" => "Planificateur urgence",
+                "CHEF_DE_POLE" or "CHEF_POLE" => "CHEF_POLE",
+                "CHEF_DE_SERVICE" or "CHEF_SERVICE" or "CHEF" => "CHEF_SERVICE",
+                "VALIDATEUR_RH" or "ADMIN_RH" or "RH" or "PLANIFICATEUR_RH" or "PLANIFICATEUR_URGENCE" or "SUPERVISEUR" or "SUPERVISEUR_INTERNE" or "SUPERVISEUR_INTERNES" => "STAFF",
                 "SUPER_ADMIN" => "SUPER_ADMIN",
-                "ADMIN_GTA" or "ADMIN" => "ADMIN",
-                "PRATICIEN" => "PRATICIEN",
-                "INFIRMIER" => "INFIRMIER",
-                "CADRE" => "CADRE",
+                "SUPERADMIN" or "SUPER_ADMINISTRATEUR" => "SUPER_ADMIN",
+                "ADMIN_GTA" or "ADMIN" => "SUPER_ADMIN",
+                "PRATICIEN" => "STAFF",
+                "INFIRMIER" => "STAFF",
+                "CADRE" => "STAFF",
                 "STAFF" => "STAFF",
-                _ => rawRole.Trim()
+                _ => "STAFF"
             };
         }
 

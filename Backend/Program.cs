@@ -1,4 +1,5 @@
 using Backend.Email;
+using Backend.Chat;
 using Backend.Competence;
 using Backend.Metier;
 using Backend.Planning;
@@ -24,6 +25,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontDev", policy =>
@@ -44,11 +47,11 @@ builder.Services.AddSingleton<PosteStore>();
 builder.Services.AddSingleton<CompetenceStore>();
 builder.Services.AddSingleton<MetierStore>();
 builder.Services.AddScoped<WorkflowStore>();
+builder.Services.Configure<ChatbotOptions>(builder.Configuration.GetSection("Chatbot"));
+builder.Services.AddSingleton<ChatService>();
 
-// Ajout du DbContext pour les notifications persistantes
 builder.Services.AddDbContext<WorkflowDbContext>(options =>
     options.UseSqlite("Data Source=workflow.db"));
-// S'assurer que le package Microsoft.EntityFrameworkCore.Sqlite est bien installé
 
 var app = builder.Build();
 
@@ -59,6 +62,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("FrontDev");
+app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -157,8 +161,6 @@ async Task<bool> IsExistingServiceIdAsync(string? serviceId, StructureStore stru
     return services.Any(s => s.Id == numericServiceId);
 }
 
-// ========== STRUCTURE ENDPOINTS ==========
-// Poles
 app.MapGet("/api/structure/poles", async (StructureStore store) => Results.Ok(await store.GetPolesAsync()));
 app.MapPost("/api/structure/poles", async (Backend.Structure.Pole payload, StructureStore store) =>
 {
@@ -171,7 +173,6 @@ app.MapDelete("/api/structure/poles/{id:int}", async (int id, StructureStore sto
     return deleted ? Results.NoContent() : Results.NotFound();
 });
 
-// Services
 app.MapGet("/api/services", async (StructureStore store) => Results.Ok(await store.GetServicesAsync()));
 app.MapGet("/api/structure/services", async (StructureStore store) => Results.Ok(await store.GetServicesAsync()));
 app.MapGet("/api/structure/services/{id:int}", async (int id, StructureStore store) =>
@@ -195,7 +196,6 @@ app.MapDelete("/api/structure/services/{id:int}", async (int id, StructureStore 
     return deleted ? Results.NoContent() : Results.NotFound();
 });
 
-// Equipes
 app.MapGet("/api/structure/equipes", async (StructureStore store) => Results.Ok(await store.GetEquipesAsync()));
 app.MapPost("/api/structure/equipes", async (Backend.Structure.Equipe payload, StructureStore store) =>
 {
@@ -213,17 +213,12 @@ app.MapDelete("/api/structure/equipes/{id:int}", async (int id, StructureStore s
     return deleted ? Results.NoContent() : Results.NotFound();
 });
 
-// Utilisateurs
 app.MapGet("/api/structure/utilisateurs", async (StructureStore store) => Results.Ok(await store.GetUtilisateursAsync()));
 
-// Statistiques
 app.MapGet("/api/structure/statistiques", async (StructureStore store) => Results.Ok(await store.GetStatistiquesAsync()));
 
-// Tree
 app.MapGet("/api/structure/tree", async (StructureStore store) => Results.Ok(await store.BuildTreeAsync()));
 
-// ========== ROLES & PERMISSIONS ==========
-// Roles
 app.MapGet("/api/roles-permissions/roles", async (RolesPermissionsStore store) => Results.Ok(await store.GetRolesAsync()));
 app.MapGet("/api/roles-permissions/roles/{roleId}", async (string roleId, RolesPermissionsStore store) =>
 {
@@ -251,7 +246,6 @@ app.MapDelete("/api/roles-permissions/roles/{roleId}", async (string roleId, Rol
     return success ? Results.NoContent() : Results.BadRequest(new { error });
 });
 
-// Role Users & History
 app.MapGet("/api/roles-permissions/roles/{roleId}/users", async (string roleId, RolesPermissionsStore store) => Results.Ok(await store.GetRoleUsersAsync(roleId)));
 app.MapGet("/api/roles-permissions/roles/{roleId}/history", async (string roleId, RolesPermissionsStore store) => Results.Ok(await store.GetRoleHistoryAsync(roleId)));
 app.MapDelete("/api/roles-permissions/roles/{roleId}/users/{userId}", async (string roleId, string userId, RolesPermissionsStore store) =>
@@ -260,7 +254,6 @@ app.MapDelete("/api/roles-permissions/roles/{roleId}/users/{userId}", async (str
     return success ? Results.NoContent() : Results.NotFound();
 });
 
-// Permissions
 app.MapGet("/api/roles-permissions/permission-categories", async (RolesPermissionsStore store) => Results.Ok(await store.GetPermissionCategoriesAsync()));
 app.MapGet("/api/roles-permissions/user/{userId:int}/permissions", async (int userId, RolesPermissionsStore store) =>
 {
@@ -278,14 +271,12 @@ app.MapPut("/api/roles-permissions/roles/{roleId}/permissions", async (string ro
     return success ? Results.NoContent() : Results.NotFound();
 });
 
-// Export
 app.MapGet("/api/roles-permissions/export", async (RolesPermissionsStore store) =>
 {
     var result = await store.ExportRolesCsvAsync();
     return Results.Ok(result);
 });
 
-// ========== METIERS ENDPOINTS ==========
 app.MapGet("/api/metiers", async (MetierStore store) => Results.Ok(await store.GetAllAsync()));
 app.MapGet("/api/metiers/{id:int}", async (int id, MetierStore store) =>
 {
@@ -323,7 +314,6 @@ app.MapDelete("/api/postes/{id:int}", async (int id, PosteStore store) =>
     return deleted ? Results.NoContent() : Results.NotFound();
 });
 
-// User context endpoint
 app.MapGet("/api/users/{userId:int}/context", async (int userId, StaffStore staffStore) =>
 {
     try
@@ -387,14 +377,12 @@ app.MapGet("/api/planning", async (
     PlanningStore store,
     StructureStore structureStore) =>
 {
-    // Rejeter les serviceId non valides ('all', chaînes non numériques)
     if (string.IsNullOrWhiteSpace(serviceId) || serviceId.Trim().Equals("all", StringComparison.OrdinalIgnoreCase))
         return Results.BadRequest(new { message = "Veuillez sélectionner un service spécifique." });
 
     if (!await IsExistingServiceIdAsync(serviceId, structureStore))
         return Results.BadRequest(new { message = "Service invalide. Veuillez sélectionner un service existant." });
 
-    // Charger le planning avec ses affectations
     var planning = await store.GetPlanningAsync(
         serviceId, 
         string.IsNullOrWhiteSpace(serviceName) ? serviceId : serviceName, 
@@ -404,7 +392,6 @@ app.MapGet("/api/planning", async (
         equipeId,
         userId);
 
-    // Enrichir avec le statut workflow MySQL si disponible
     var weekWorkflow = await store.GetWeekWorkflowByServiceAsync(serviceId, weekStart);
     if (weekWorkflow != null)
     {
@@ -417,7 +404,6 @@ app.MapGet("/api/planning", async (
 
 app.MapPost("/api/planning/assignments", async (SaveAssignmentRequest request, PlanningStore store, StructureStore structureStore) =>
 {
-    // Rejeter les serviceId non valides ('all', chaînes non numériques)
     if (string.IsNullOrWhiteSpace(request.ServiceId) || request.ServiceId.Trim().Equals("all", StringComparison.OrdinalIgnoreCase))
         return Results.BadRequest(new { message = "Veuillez sélectionner un service spécifique avant d'enregistrer des affectations." });
 
@@ -451,7 +437,6 @@ app.MapDelete("/api/planning/assignments/{assignmentId}", async (
 
 app.MapPut("/api/planning/assignments", async (ReplaceAssignmentsRequest request, PlanningStore store, StructureStore structureStore) =>
 {
-    // Rejeter les serviceId non valides ('all', chaînes non numériques)
     if (string.IsNullOrWhiteSpace(request.ServiceId) || request.ServiceId.Trim().Equals("all", StringComparison.OrdinalIgnoreCase))
         return Results.BadRequest(new { message = "Veuillez sélectionner un service spécifique avant d'enregistrer des affectations." });
 
@@ -535,10 +520,6 @@ app.MapGet("/api/planning/overview", async (string? serviceId, DateTime? weekSta
 {
     var overviews = await store.GetOverviewAsync(serviceId, weekStart, onlyValidated ?? false);
     
-    // Filtrer les plannings selon leur statut de validation dans le workflow
-    // Retourner tous les plannings (BROUILLON, EN_ATTENTE_VALIDATION, VALIDE, REJETE)
-    // sans filtrer par statut : le dashboard affiche le planning de la semaine courante
-    // quel que soit son état dans le flux de validation.
     return Results.Ok(overviews);
 });
 
@@ -548,7 +529,6 @@ app.MapPost("/api/planning/versions", async (SavePlanningVersionRequest request,
 app.MapGet("/api/planning/versions", async (string serviceId, DateTime weekStart, DateTime? weekEnd, PlanningStore store) =>
     Results.Ok(await store.GetVersionsAsync(serviceId, weekStart, weekEnd)));
 
-// Soumettre un planning (prépare la semaine et laisse le circuit MySQL notifier l'étape suivante)
 app.MapPost("/api/planning/submit", async (JsonElement payload, PlanningStore planningStore, StructureStore structureStore) =>
 {
     try
@@ -582,7 +562,6 @@ app.MapPost("/api/planning/submit", async (JsonElement payload, PlanningStore pl
             ? messageProp.GetString()
             : null;
 
-        // Si des affectations sont fournies dans le payload, les sauvegarder d'abord
         if (payload.TryGetProperty("assignments", out var assignmentsProp) && assignmentsProp.ValueKind == JsonValueKind.Array)
         {
             var jsonOptions = new JsonSerializerOptions 
@@ -596,7 +575,6 @@ app.MapPost("/api/planning/submit", async (JsonElement payload, PlanningStore pl
             }
         }
 
-        // Récupérer le planning existant (avec les affectations sauvegardées si fournies)
         var planning = await planningStore.GetPlanningAsync(serviceId, serviceName, weekStart, weekEnd);
         
         if (planning.Assignments.Count == 0)
@@ -615,12 +593,11 @@ app.MapPost("/api/planning/submit", async (JsonElement payload, PlanningStore pl
             return Results.BadRequest(new { success = false, message = $"Le planning contient {planning.Conflicts.Count} conflit(s). Résolvez-les avant de soumettre." });
         }
 
-        // Convertir les assignments en AssignmentItem pour le workflow
         var assignments = planning.Assignments.Select(a => new AssignmentItem
         {
             Id = a.Id,
             UserId = a.PersonnelId,
-            UserName = a.PersonnelId, // TODO: Résoudre le nom depuis staff_users
+            UserName = a.PersonnelId,
             Title = a.PosteLabel ?? a.ShiftType,
             Start = planning.WeekStart.AddDays(a.Day),
             End = planning.WeekStart.AddDays(a.Day).AddHours(12),
@@ -636,7 +613,6 @@ app.MapPost("/api/planning/submit", async (JsonElement payload, PlanningStore pl
             PosteId = a.PosteId
         }).ToList();
 
-        // Lier le planning au workflow (mise à jour MySQL de base)
         var sqlWeekId = await planningStore.SubmitPlanningToWorkflowAsync(
             serviceId,
             serviceName,
@@ -746,7 +722,6 @@ app.MapDelete("/api/staff/{id:int}/affectations/{affectationId:int}", async (int
     return deleted ? Results.NoContent() : Results.NotFound();
 });
 
-// ========== ESPACE PERSONNEL: DEMANDES UTILISATEUR ==========
 static int ResolveActingUserId(HttpContext httpContext, int? bodyActingUserId = null)
 {
     if (bodyActingUserId.HasValue && bodyActingUserId.Value > 0)
@@ -855,6 +830,12 @@ app.MapGet("/api/demandes/mes-demandes", async (DateTime? from, DateTime? to, Ht
     return Results.Ok(requests);
 });
 
+app.MapGet("/api/demandes/types", async (bool? requestableOnly, PlanningStore planningStore) =>
+{
+    var types = await planningStore.GetDemandeTypesAsync(requestableOnly ?? false);
+    return Results.Ok(types);
+});
+
 app.MapGet("/api/demandes/a-valider", async (HttpContext httpContext, PlanningStore planningStore) =>
 {
     var actingUserId = ResolveActingUserId(httpContext);
@@ -958,16 +939,12 @@ app.MapPost("/api/auth/reset-password", async (JsonElement payload, StaffStore s
     return ok ? Results.Ok(new { success = true }) : Results.BadRequest(new { success = false });
 });
 
-// ========== WORKFLOW ENDPOINTS ==========
-
-// Récupérer la liste des plannings en attente de validation
 app.MapGet("/api/workflow/plannings", async (WorkflowStore store, WorkflowStatut? statut, string? serviceId, int? etapeActuelle) =>
 {
     var plannings = await store.GetPlanningsAsync(statut, serviceId, etapeActuelle).ToListAsync();
     return Results.Ok(plannings);
 });
 
-// Récupérer les détails d'un planning (MySQL réel)
 app.MapGet("/api/workflow/plannings/{id:int}", async (int id, PlanningStore planningStore, WorkflowStore wfStore) =>
 {
     var week = await planningStore.GetPlanningWeekByIdAsync(id);
@@ -976,23 +953,18 @@ app.MapGet("/api/workflow/plannings/{id:int}", async (int id, PlanningStore plan
 
     var historique = await planningStore.GetValidationHistoryAsync(id);
 
-    // Charger les affectations réelles du planning
     var planningData = await planningStore.GetPlanningAsync(
         week.ServiceId,
         week.ServiceName ?? week.ServiceId,
         week.WeekStart,
         week.WeekEnd);
 
-    // Récupérer la config workflow pour les étapes.
-    // Priorité : WorkflowConfigId stocké sur le planning (config exacte utilisée lors de la soumission).
-    // Fallback : config active du service.
     Backend.Workflow.WorkflowConfigItem? config = null;
     if (week.WorkflowConfigId.HasValue)
         config = await planningStore.GetWorkflowConfigByIdMySqlAsync(week.WorkflowConfigId.Value);
     if (config == null && week.ServiceIdInt > 0)
         config = await wfStore.GetConfigByServiceAsync(week.ServiceIdInt);
 
-    // Mapper statut MySQL → statut frontend attendu par le composant Angular
     var frontendStatus = (week.Statut ?? "BROUILLON", week.EtapeActuelle) switch
     {
         ("VALIDE", _)                       => "VALIDE",
@@ -1105,17 +1077,12 @@ app.MapGet("/api/workflow/plannings/{id:int}", async (int id, PlanningStore plan
     });
 });
 
-// Vérifier le statut de validation pour un utilisateur
 app.MapGet("/api/workflow/plannings/{id:int}/status", async (int id, string role, WorkflowStore store) =>
 {
     var status = await store.GetValidationStatusAsync(id, role);
     return Results.Ok(status);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER : mappe PlanningWeekWorkflow vers le format attendu par le frontend
-// Inclut un champ "history" pour que les composants "Créé par" fonctionnent.
-// ─────────────────────────────────────────────────────────────────────────────
 static object MapWeekWorkflowForFrontend(PlanningWeekWorkflow p)
 {
     var frontendStatus = (p.Statut, p.EtapeActuelle) switch
@@ -1128,7 +1095,6 @@ static object MapWeekWorkflowForFrontend(PlanningWeekWorkflow p)
         _                                   => "BROUILLON"
     };
 
-    // Entrée synthétique de soumission pour alimenter le champ "Créé par"
     var historyEntry = !string.IsNullOrEmpty(p.SoumisParNom)
         ? new object[]
           {
@@ -1174,9 +1140,6 @@ static object MapWeekWorkflowForFrontend(PlanningWeekWorkflow p)
     };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER : convertit WorkflowConfigItem (EF Core) → WorkflowConfigResult (MySQL)
-// ─────────────────────────────────────────────────────────────────────────────
 static WorkflowConfigResult? ToWorkflowConfigResult(Backend.Workflow.WorkflowConfigItem? config) =>
     config is null ? null : new WorkflowConfigResult(
         config.Id, config.ServiceId, config.IsActive,
@@ -1184,9 +1147,6 @@ static WorkflowConfigResult? ToWorkflowConfigResult(Backend.Workflow.WorkflowCon
             s.Id, s.Order, s.Label ?? s.ValidatorRole, s.ValidatorRole,
             s.ValidatorUserId, s.MaxDelayHours, s.IsFinalApproval, s.IsActive)).ToList());
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER : lire l'userId depuis l'en-tête ou le corps de la requête
-// ─────────────────────────────────────────────────────────────────────────────
 static string MapWfNotificationType(string mysqlType) => mysqlType switch
 {
     "WORKFLOW_SOUMIS"    => "WORKFLOW_SUBMITTED",
@@ -1198,7 +1158,6 @@ static string MapWfNotificationType(string mysqlType) => mysqlType switch
 
 static (int userId, string userName) GetCurrentUser(HttpRequest request, JsonElement? body = null)
 {
-    // 1. Essayer l'en-tête X-User-Id
     if (request.Headers.TryGetValue("X-User-Id", out var userIdHeader) &&
         int.TryParse(userIdHeader.FirstOrDefault(), out var uidFromHeader))
     {
@@ -1208,7 +1167,6 @@ static (int userId, string userName) GetCurrentUser(HttpRequest request, JsonEle
         return (uidFromHeader, name);
     }
 
-    // 2. Essayer dans le corps JSON
     if (body.HasValue)
     {
         if (body.Value.TryGetProperty("userId", out var uidProp) && uidProp.TryGetInt32(out var uid))
@@ -1230,7 +1188,6 @@ static (int userId, string userName) GetCurrentUser(HttpRequest request, JsonEle
     return (0, "Utilisateur");
 }
 
-// Approuver un planning (MySQL réel)
 app.MapPost("/api/workflow/plannings/{id:int}/approuver", async (
     int id, JsonElement payload, HttpRequest request,
     PlanningStore planningStore, WorkflowStore wfStore) =>
@@ -1257,7 +1214,6 @@ app.MapPost("/api/workflow/plannings/{id:int}/approuver", async (
     }
 });
 
-// Rejeter un planning (MySQL réel)
 app.MapPost("/api/workflow/plannings/{id:int}/rejeter", async (
     int id, JsonElement payload, HttpRequest request,
     PlanningStore planningStore) =>
@@ -1279,7 +1235,6 @@ app.MapPost("/api/workflow/plannings/{id:int}/rejeter", async (
     }
 });
 
-// Demander une modification (MySQL réel)
 app.MapPost("/api/workflow/plannings/{id:int}/demander-modification", async (
     int id, JsonElement payload, HttpRequest request,
     PlanningStore planningStore) =>
@@ -1298,7 +1253,6 @@ app.MapPost("/api/workflow/plannings/{id:int}/demander-modification", async (
         : Results.Ok(new { success = true, planning = result });
 });
 
-// Soumettre un planning pour validation (MySQL réel)
 app.MapPost("/api/workflow/plannings/{id:int}/soumettre", async (
     int id, JsonElement payload, HttpRequest request,
     PlanningStore planningStore, WorkflowStore wfStore) =>
@@ -1322,33 +1276,28 @@ app.MapPost("/api/workflow/plannings/{id:int}/soumettre", async (
     }
 });
 
-// ─── Mes soumissions ───────────────────────────────────────────────────────
 app.MapGet("/api/workflow/plannings/mes-soumissions", async (
     HttpRequest request, int? poleId, PlanningStore planningStore) =>
 {
     var (uid, _) = GetCurrentUser(request);
     if (uid == 0) return Results.Unauthorized();
-    // Si poleId fourni (utilisateur chef-pôle), voir toutes les soumissions du pôle
     var result = poleId.HasValue
         ? await planningStore.GetPlanningsWorkflowAsync(poleId: poleId)
         : await planningStore.GetPlanningsWorkflowAsync(soumisParId: uid);
     return Results.Ok(result.Select(p => MapWeekWorkflowForFrontend(p)));
 });
 
-// ─── Plannings à valider (inbox validateur) ────────────────────────────────
 app.MapGet("/api/workflow/plannings/en-attente", async (
     HttpRequest request, int? poleId, PlanningStore planningStore) =>
 {
     var (uid, _) = GetCurrentUser(request);
     if (uid == 0) return Results.Unauthorized();
-    // Si poleId fourni (chef-pôle), montrer tous les plannings de son pôle à valider
     var result = poleId.HasValue
         ? await planningStore.GetPlanningsWorkflowAsync(poleId: poleId)
         : await planningStore.GetPlanningsWorkflowAsync(validateurId: uid);
     return Results.Ok(result.Select(p => MapWeekWorkflowForFrontend(p)));
 });
 
-// ─── Historique de validation d'un planning ────────────────────────────────
 app.MapGet("/api/workflow/plannings/{id:int}/historique", async (
     int id, PlanningStore planningStore) =>
 {
@@ -1358,7 +1307,6 @@ app.MapGet("/api/workflow/plannings/{id:int}/historique", async (
 
 
 
-// Récupérer les statistiques du dashboard admin
 app.MapGet("/api/workflow/dashboard", async (WorkflowStore store) =>
 {
     var stats = await store.GetDashboardStatsAsync();
@@ -1698,6 +1646,40 @@ app.MapPost("/api/notifications/lire-tout", async (HttpRequest request, Planning
     if (uid == 0) return Results.Unauthorized();
     await planningStore.MarkAllNotificationsReadAsync(uid);
     return Results.Ok(new { success = true });
+});
+
+app.MapPost("/api/notifications/arret", async (JsonElement payload, HttpRequest request, PlanningStore planningStore) =>
+{
+    var (senderId, senderName) = GetCurrentUser(request, payload);
+
+    var recipientId = senderId;
+    if (payload.TryGetProperty("recipientId", out var recipientProp) && int.TryParse(recipientProp.GetString(), out var parsedRecipient) && parsedRecipient > 0)
+    {
+        recipientId = parsedRecipient;
+    }
+
+    var employeeId = payload.TryGetProperty("employeeId", out var employeeProp)
+        ? employeeProp.GetString() ?? senderName
+        : senderName;
+
+    var title = payload.TryGetProperty("title", out var titleProp) && !string.IsNullOrWhiteSpace(titleProp.GetString())
+        ? titleProp.GetString()!
+        : "Arrêt de travail";
+
+    var startDate = payload.TryGetProperty("startDate", out var startDateProp) ? startDateProp.GetString() ?? "" : "";
+    var endDate = payload.TryGetProperty("endDate", out var endDateProp) ? endDateProp.GetString() ?? startDate : startDate;
+    var message = payload.TryGetProperty("message", out var messageProp) && !string.IsNullOrWhiteSpace(messageProp.GetString())
+        ? messageProp.GetString()!
+        : $"Arrêt enregistré pour {employeeId} du {startDate} au {endDate}.";
+
+    int? planningWeekId = null;
+    if (payload.TryGetProperty("planningWeekId", out var planningWeekIdProp) && planningWeekIdProp.TryGetInt32(out var parsedPlanningWeekId))
+    {
+        planningWeekId = parsedPlanningWeekId;
+    }
+
+    var ok = await planningStore.CreateArretNotificationAsync(recipientId, title, message, planningWeekId, senderId, null);
+    return ok ? Results.Ok(new { success = true }) : Results.BadRequest(new { success = false });
 });
 
 // ========== WORKFLOW CONFIG (MySQL : workflow_configs + workflow_etapes) ==========

@@ -1,6 +1,6 @@
 <div class="demande-backdrop" *ngIf="visible" (click)="closeModal()"></div>
 
-<section class="demande-modal" *ngIf="visible" role="dialog" aria-modal="true" aria-label="Créer une demande">
+<section class="demande-modal" *ngIf="visible" role="dialog" aria-modal="true" aria-label="Nouvelle demande">
     <header>
         <h3>Nouvelle demande</h3>
         <button type="button" pButton class="p-button-text" icon="pi pi-times" (click)="closeModal()" [disabled]="loading" aria-label="Fermer"></button>
@@ -8,30 +8,103 @@
 
     <div class="form-grid">
         <label>
-            <span>Date</span>
-            <input type="date" [(ngModel)]="form.date" [disabled]="loading" />
+            <span>{{ isHsType ? 'Date' : 'Date debut' }}</span>
+            <input type="date" [(ngModel)]="form.startDate" (ngModelChange)="onStartDateChange()" [disabled]="loading" />
         </label>
 
-        <label>
-            <span>Type</span>
-            <select [(ngModel)]="form.type" [disabled]="loading">
-                <option *ngFor="let option of typeOptions" [ngValue]="option.value">{{ option.label }}</option>
+        <label *ngIf="showEndDateField">
+            <span>Date fin</span>
+            <input type="date" [(ngModel)]="form.endDate" (ngModelChange)="onEndDateChange()" [disabled]="loading" />
+        </label>
+
+        <div class="full-width type-picker" aria-label="Types de demande RH">
+            <span class="type-picker-label">Type d evenement</span>
+            <div class="type-chip-grid">
+                <button
+                    type="button"
+                    class="type-chip"
+                    *ngFor="let option of requestTypes"
+                    [class.active]="form.type === option.code"
+                    [disabled]="loading"
+                    [title]="option.description"
+                    [ngStyle]="getTypeChipStyle(option)"
+                    (click)="onTypeSelect(option.code)">
+                    <span class="type-chip-code">{{ option.code }}</span>
+                    <span class="type-chip-label">{{ option.label }}</span>
+                </button>
+            </div>
+
+            <div class="type-description">
+                <span class="type-description-title">{{ selectedType.code }} - {{ selectedType.label }}</span>
+                <p>{{ selectedType.description }}</p>
+            </div>
+        </div>
+
+        <label *ngIf="showTimeFields">
+            <span>Heure debut</span>
+            <input type="time" [(ngModel)]="form.startTime" [disabled]="loading" />
+        </label>
+
+        <label *ngIf="showTimeFields">
+            <span>Heure fin</span>
+            <input type="time" [(ngModel)]="form.endTime" [disabled]="loading" />
+        </label>
+
+        <label *ngIf="showAlReasonField" class="full-width">
+            <span>Motif legal</span>
+            <select [(ngModel)]="form.alReason" [disabled]="loading">
+                <option value="">Selectionner un motif</option>
+                <option value="marriage">{{ alReasonRules.marriage.label }}</option>
+                <option value="bereavement">{{ alReasonRules.bereavement.label }}</option>
+                <option value="birth">{{ alReasonRules.birth.label }}</option>
+                <option value="family_event">{{ alReasonRules.family_event.label }}</option>
+                <option value="other">{{ alReasonRules.other.label }}</option>
             </select>
         </label>
 
-        <label>
-            <span>Heure début</span>
-            <input type="time" [(ngModel)]="form.heureDebut" [disabled]="loading" />
+        <label *ngIf="showAbsenceReasonField" class="full-width">
+            <span>Motif d absence</span>
+            <select [(ngModel)]="form.absenceReason" [disabled]="loading">
+                <option value="">Selectionner un motif</option>
+                <option value="unjustified">{{ absenceReasons.unjustified }}</option>
+                <option value="sick_leave">{{ absenceReasons.sick_leave }}</option>
+                <option value="work_accident">{{ absenceReasons.work_accident }}</option>
+                <option value="other">{{ absenceReasons.other }}</option>
+            </select>
         </label>
 
-        <label>
-            <span>Heure fin</span>
-            <input type="time" [(ngModel)]="form.heureFin" [disabled]="loading" />
+        <label *ngIf="showAbsenceUnknownEndDateToggle" class="full-width checkbox-field">
+            <input type="checkbox" [(ngModel)]="form.absenceEndDateUnknown" (ngModelChange)="onAbsenceUnknownEndDateChange()" [disabled]="loading" />
+            <span>Date fin inconnue a la soumission (date fin = date debut, modifiable plus tard)</span>
         </label>
+
+        <div class="full-width info-panel" *ngIf="form.type === 'VA'">
+            Jours ouvrables deduits (hors week-ends et jours feries): <strong>{{ computedWorkingDays }}</strong>
+        </div>
+
+        <div class="full-width info-panel" *ngIf="form.type === 'HS'">
+            Duree calculee: <strong>{{ computedHsDurationLabel }}</strong>
+            <small>Si l heure de fin est inferieure a l heure de debut, le calcul passe automatiquement minuit.</small>
+        </div>
+
+        <div class="full-width info-panel" *ngIf="form.type === 'AL' && selectedAlMaxDays !== null">
+            Maximum autorise pour ce motif: <strong>{{ selectedAlMaxDays }} jour(s)</strong>.
+            <small>Un justificatif sera requis apres la soumission.</small>
+        </div>
+
+        <div class="full-width info-panel" *ngIf="form.type === 'AS'">
+            Duree astreinte calculee: <strong>{{ computedAsDurationLabel }}</strong>
+            <small>En cas d intervention, une demande HS distincte doit etre creee et liee a cette astreinte.</small>
+        </div>
+
+        <div class="full-width info-panel" *ngIf="form.type === 'ABSENCE'">
+            {{ absencePayrollHint }}
+            <small *ngIf="isSingleDayAbsence">Absence sur une seule journee: renseignez l heure de debut et l heure de fin.</small>
+        </div>
 
         <label class="full-width">
             <span>Commentaire</span>
-            <textarea rows="3" [(ngModel)]="form.commentaire" [disabled]="loading" placeholder="Détails complémentaires (optionnel)"></textarea>
+            <textarea rows="3" [(ngModel)]="form.comment" [disabled]="loading" placeholder="Details complementaires (optionnel)"></textarea>
         </label>
     </div>
 

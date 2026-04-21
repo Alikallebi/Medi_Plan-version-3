@@ -166,6 +166,7 @@ public sealed class CreateUserPlanningRequestDto
     public int UserId { get; set; }
     public int ServiceId { get; set; }
     public DateTime Date { get; set; }
+    public DateTime? DateFin { get; set; }
     public string Type { get; set; } = string.Empty;
     public string HeureDebut { get; set; } = string.Empty;
     public string HeureFin { get; set; } = string.Empty;
@@ -203,6 +204,7 @@ public sealed class UserPlanningRequestItem
     public int UserId { get; set; }
     public int ServiceId { get; set; }
     public DateTime Date { get; set; }
+    public DateTime? DateFin { get; set; }
     public string Type { get; set; } = string.Empty;
     public string HeureDebut { get; set; } = string.Empty;
     public string HeureFin { get; set; } = string.Empty;
@@ -229,4 +231,14 @@ public sealed class DemandeHistoriqueItem
     public string? ActeurNom { get; set; }
     public string? Commentaire { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public sealed class DemandeTypeDefinition
+{
+    public string Code { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Color { get; set; } = "#64748b";
+    public string Impact { get; set; } = "neutral";
+    public bool IsRequestable { get; set; }
 }

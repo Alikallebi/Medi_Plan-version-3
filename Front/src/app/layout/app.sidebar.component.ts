@@ -2,6 +2,7 @@
 import { Router } from '@angular/router';
 import { UserService } from '../demo/service/staff.service';
 import { RbacService } from '../demo/service/rbac.service';
+import { AuthService } from '../demo/service/auth.service';
 import { Subscription } from 'rxjs';
 
 interface SidebarItem {
@@ -21,8 +22,9 @@ interface SidebarItem {
 export class AppSidebarComponent implements OnDestroy {
     isCollapsed = false;
     private permSub?: Subscription;
+    private currentRole = '';
+    private currentUserId: number | null = null;
 
-    // Listes brutes — source de vérité (toutes les pages)
     private allMainNavigation: SidebarItem[] = [
         { label: 'Tableau de bord', icon: 'pi pi-home',     route: '/dashboard',          permission: 'dashboard.view' },
         { label: 'Espace personnel', icon: 'pi pi-user',     route: '/pages/mon-espace' },
@@ -69,7 +71,6 @@ export class AppSidebarComponent implements OnDestroy {
         { label: 'Rapports',      icon: 'pi pi-chart-line', route: '/uikit/charts',        permission: 'outils.rapports' }
     ];
 
-    // Listes filtrées rendues dans le template — reconstruites à chaque changement de permissions
     mainNavigation: SidebarItem[] = [];
     dataManagement: SidebarItem[] = [];
     toolsNavigation: SidebarItem[] = [];
@@ -79,10 +80,12 @@ export class AppSidebarComponent implements OnDestroy {
         private readonly userService: UserService,
         public readonly el: ElementRef,
         private readonly rbac: RbacService,
+        private readonly authService: AuthService,
         private readonly cdr: ChangeDetectorRef
     ) {
-        // Comme AppMenuComponent : rebuild les tableaux à chaque émission de permissions$
         this.permSub = this.rbac.permissions$.subscribe(() => {
+            this.currentRole = this.resolveCurrentRole();
+            this.currentUserId = this.authService.getUserId();
             this.rebuildVisibleItems();
             this.cdr.markForCheck();
         });
@@ -100,7 +103,48 @@ export class AppSidebarComponent implements OnDestroy {
         return !item.permission || this.rbac.canView(item.permission);
     }
 
+    private resolveCurrentRole(): string {
+        const fromContext = (this.authService.getUserRole() || '').trim().toLowerCase();
+        if (fromContext) {
+            return fromContext;
+        }
+
+        const fromStorage = (localStorage.getItem('role') || '').trim().toLowerCase();
+        return fromStorage.replace(/_/g, '-');
+    }
+
+    private isStaffRole(): boolean {
+        return this.currentRole === 'staff';
+    }
+
+    private buildStaffMainNavigation(): SidebarItem[] {
+        const userId = this.currentUserId || Number(localStorage.getItem('idUser') || '0');
+        const detailRoute = Number.isFinite(userId) && userId > 0
+            ? `/pages/utilisateurs/${userId}`
+            : '/pages/mon-compte';
+
+        return [
+            { label: 'Tableau de bord', icon: 'pi pi-home', route: '/dashboard' },
+            { label: 'Espace personnel', icon: 'pi pi-user', route: '/pages/mon-espace' },
+            { label: 'Mon compte', icon: 'pi pi-id-card', route: detailRoute }
+        ];
+    }
+
+    private buildStaffToolsNavigation(): SidebarItem[] {
+        return [
+            { label: 'Notifications', icon: 'pi pi-bell', route: '/pages/notifications' },
+            { label: 'Historique', icon: 'pi pi-history', route: '/pages/historique' }
+        ];
+    }
+
     private rebuildVisibleItems(): void {
+        if (this.isStaffRole()) {
+            this.mainNavigation = this.buildStaffMainNavigation();
+            this.dataManagement = [];
+            this.toolsNavigation = this.buildStaffToolsNavigation();
+            return;
+        }
+
         this.mainNavigation = this.allMainNavigation.filter(item => this.canSee(item));
         this.dataManagement = this.allDataManagement.filter(item => this.canSee(item));
         this.toolsNavigation = this.allToolsNavigation.filter(item => this.canSee(item));

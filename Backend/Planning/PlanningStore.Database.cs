@@ -33,16 +33,28 @@ public sealed partial class PlanningStore
         DateTime weekEnd,
         MySqlTransaction? tx = null)
     {
+        var normalizedWeekStart = weekStart.Date;
+        var normalizedWeekEnd = weekEnd.Date;
+        if (normalizedWeekEnd < normalizedWeekStart)
+        {
+            normalizedWeekEnd = normalizedWeekStart;
+        }
+        var maxWeeklyEnd = normalizedWeekStart.AddDays(6);
+        if (normalizedWeekEnd > maxWeeklyEnd)
+        {
+            normalizedWeekEnd = maxWeeklyEnd;
+        }
+
         // Toujours résoudre le nom réel depuis la BD pour éviter les noms erronés
         // comme "Tous les services" envoyés par le frontend.
         var dbName = await ResolveServiceNameFromDbAsync(connection, serviceId, tx);
         if (!string.IsNullOrWhiteSpace(dbName))
             serviceName = dbName;
 
-        var weekId = await FindWeekIdAsync(connection, serviceId, weekStart, weekEnd, tx);
+        var weekId = await FindWeekIdAsync(connection, serviceId, normalizedWeekStart, normalizedWeekEnd, tx);
         if (!string.IsNullOrEmpty(weekId))
         {
-            await UpdateWeekMetadataAsync(connection, weekId, serviceName, weekEnd, tx);
+            await UpdateWeekMetadataAsync(connection, weekId, serviceName, normalizedWeekEnd, tx);
             return weekId;
         }
 
@@ -54,8 +66,8 @@ public sealed partial class PlanningStore
         await using var cmd = new MySqlCommand(insertSql, connection, tx);
         cmd.Parameters.AddWithValue("@serviceId", serviceId);
         cmd.Parameters.AddWithValue("@serviceName", serviceName);
-        cmd.Parameters.AddWithValue("@weekStart", weekStart);
-        cmd.Parameters.AddWithValue("@weekEnd", weekEnd);
+        cmd.Parameters.AddWithValue("@weekStart", normalizedWeekStart);
+        cmd.Parameters.AddWithValue("@weekEnd", normalizedWeekEnd);
         cmd.Parameters.AddWithValue("@createdAt", now);
         cmd.Parameters.AddWithValue("@updatedAt", now);
         try
@@ -64,17 +76,17 @@ public sealed partial class PlanningStore
         }
         catch (MySqlException ex) when (ex.Message.Contains("Duplicate entry"))
         {
-            var existingWeekId = await FindWeekIdAsync(connection, serviceId, weekStart, null, tx);
+            var existingWeekId = await FindWeekIdAsync(connection, serviceId, normalizedWeekStart, null, tx);
             if (!string.IsNullOrEmpty(existingWeekId))
             {
-                await UpdateWeekMetadataAsync(connection, existingWeekId, serviceName, weekEnd, tx);
+                await UpdateWeekMetadataAsync(connection, existingWeekId, serviceName, normalizedWeekEnd, tx);
                 return existingWeekId;
             }
 
             throw;
         }
 
-        var insertedWeekId = await FindWeekIdAsync(connection, serviceId, weekStart, weekEnd, tx);
+        var insertedWeekId = await FindWeekIdAsync(connection, serviceId, normalizedWeekStart, normalizedWeekEnd, tx);
         return insertedWeekId;
     }
 
@@ -85,13 +97,10 @@ public sealed partial class PlanningStore
         DateTime requestedWeekEnd,
         MySqlTransaction? tx = null)
     {
-        // Ne jamais rétrécir la période enregistrée.
-        // Si une semaine a été créée avec une borne partielle (ex: fin de mois),
-        // on l'étend au besoin lors d'une sauvegarde hebdomadaire classique.
         const string sql = @"
 UPDATE planning_weeks
 SET service_name = @serviceName,
-    week_end = CASE WHEN week_end < @requestedWeekEnd THEN @requestedWeekEnd ELSE week_end END,
+    week_end = @requestedWeekEnd,
     updated_at = @updatedAt
 WHERE id = @weekId;";
 

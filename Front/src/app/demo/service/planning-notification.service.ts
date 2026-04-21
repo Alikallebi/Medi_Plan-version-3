@@ -1,5 +1,10 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
+import { PlanningNotification } from '../api/planning.models';
+import { PlanningService } from './planning.service';
+import { environment } from 'src/environments/environment';
 
 export interface PlanningToast {
     id: string;
@@ -11,8 +16,14 @@ export interface PlanningToast {
     providedIn: 'root'
 })
 export class PlanningNotificationService {
+    private readonly apiUrl = `${environment.apiBaseUrl}/api`;
     private readonly toastsSubject = new BehaviorSubject<PlanningToast[]>([]);
     readonly toasts$ = this.toastsSubject.asObservable();
+
+    constructor(
+        private readonly http: HttpClient,
+        private readonly planningService: PlanningService
+    ) {}
 
     showSuccess(message: string): void {
         this.pushToast('success', message);
@@ -28,6 +39,19 @@ export class PlanningNotificationService {
 
     showInfo(message: string): void {
         this.pushToast('info', message);
+    }
+
+    notifyArretInfo(notification: PlanningNotification): Observable<void> {
+        return this.http.post<void>(`${this.apiUrl}/notifications/arret`, notification).pipe(
+            tap(() => {
+                this.planningService.applyArretNotification(notification);
+                this.pushToast('info', notification.message);
+            }),
+            catchError(error => {
+                this.pushToast('warning', notification.message);
+                return throwError(() => error);
+            })
+        );
     }
 
     dismiss(id: string): void {

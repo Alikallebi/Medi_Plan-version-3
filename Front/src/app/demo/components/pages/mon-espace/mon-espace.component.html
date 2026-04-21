@@ -110,8 +110,10 @@
                         </span>
 
                         <div class="entry-content">
-                            <strong>{{ affectation.code }} - {{ affectation.libelle }}</strong>
+                            <strong>{{ getAffectationTitle(affectation) }}</strong>
                             <span>{{ formatAffectationTime(affectation) }}</span>
+                            <small *ngIf="isHsAffectation(affectation)">Heure supplémentaire (sortie {{ affectation.heureFin || '--:--' }})</small>
+                            <small *ngIf="isArretAffectation(affectation)">Arrêt de travail</small>
                             <small>Durée {{ getAffectationDurationLabel(affectation) }}</small>
                         </div>
                     </div>
@@ -131,13 +133,15 @@
                 </div>
 
                 <ng-container *ngIf="day.demandes.length > 0; else emptyRequests">
-                    <div class="entry request-entry" *ngFor="let demande of day.demandes; trackBy: trackByDemande" (click)="openDemandeDetail(demande)">
+                    <div class="entry request-entry" *ngFor="let demande of day.demandes; trackBy: trackByDemande" [title]="getDemandeTypeDescription(demande.type)" (click)="openDemandeDetail(demande)">
                         <span class="request-icon"><i class="pi pi-hourglass"></i></span>
+                        <span class="event-code-badge" [ngStyle]="getDemandeTypeBadgeStyle(demande.type)">{{ getDemandeTypeMeta(demande.type).code }}</span>
 
                         <div class="entry-content">
                             <strong>{{ formatDemandeTitle(demande.type) }}</strong>
-                            <span>{{ (demande.heureDebut || '--:--') + ' - ' + (demande.heureFin || '--:--') }}</span>
+                            <span>{{ getDemandeScheduleLabel(demande) }}</span>
                             <small *ngIf="demande.commentaire">{{ demande.commentaire }}</small>
+                            <small *ngIf="isInformationalDemande(demande)" class="info-note">Message informatif, sans validation.</small>
                             <small class="rejection-note" *ngIf="demande.motifRejet">Motif du rejet: {{ demande.motifRejet }}</small>
                         </div>
 
@@ -146,7 +150,7 @@
                                 {{ getDemandeStatusLabel(demande.statut) }}
                             </span>
                             <button
-                                *ngIf="demande.id"
+                                *ngIf="demande.id && !isInformationalDemande(demande)"
                                 type="button"
                                 pButton
                                 class="p-button-sm p-button-text"
@@ -187,26 +191,28 @@
         [visible]="showDemandeModal"
         [loading]="createDemandeLoading"
         [defaultDate]="modalDefaultDate"
+        [workEndHourByDate]="workEndHourByDate"
+        [typeDefinitions]="demandeTypeDefinitions"
         (close)="closeDemandeModal()"
-        (submitDemande)="submitDemande($event)">
+        (submitDemande)="submitDemande($any($event))">
     </app-demande-modal>
 
     <div class="demande-detail-backdrop" *ngIf="selectedDemandeDetail" (click)="closeDemandeDetail()"></div>
-    <section class="demande-detail-modal" *ngIf="selectedDemandeDetail" role="dialog" aria-modal="true" aria-label="Détail de la demande">
+    <section class="demande-detail-modal" *ngIf="selectedDemandeDetail as detail" role="dialog" aria-modal="true" aria-label="Détail de la demande">
         <header>
-            <h3>Détail de la demande #{{ selectedDemandeDetail.id }}</h3>
+            <h3>Détail de la demande #{{ detail.id }}</h3>
             <button type="button" pButton class="p-button-text" icon="pi pi-times" (click)="closeDemandeDetail()" aria-label="Fermer"></button>
         </header>
 
         <div class="detail-grid">
-            <div><span>Type</span><strong>{{ formatDemandeTitle(selectedDemandeDetail.type) }}</strong></div>
-            <div><span>Statut</span><strong>{{ getDemandeStatusLabel(selectedDemandeDetail.statut) }}</strong></div>
-            <div><span>Date</span><strong>{{ selectedDemandeDetail.date | date:'dd/MM/yyyy' }}</strong></div>
-            <div><span>Créneau</span><strong>{{ (selectedDemandeDetail.heureDebut || '--:--') + ' - ' + (selectedDemandeDetail.heureFin || '--:--') }}</strong></div>
-            <div><span>Envoyée à</span><strong>{{ getDemandeReceiverLabel(selectedDemandeDetail) }}</strong></div>
-            <div><span>Date validation</span><strong>{{ selectedDemandeDetail.dateValidation ? (selectedDemandeDetail.dateValidation | date:'dd/MM/yyyy HH:mm') : '-' }}</strong></div>
-            <div class="full"><span>Commentaire</span><strong>{{ selectedDemandeDetail.commentaire || '-' }}</strong></div>
-            <div class="full" *ngIf="selectedDemandeDetail.motifRejet"><span>Motif rejet</span><strong>{{ selectedDemandeDetail.motifRejet }}</strong></div>
+            <div><span>Type</span><strong>{{ formatDemandeTitle(detail.type) }}</strong></div>
+            <div><span>Statut</span><strong>{{ getDemandeStatusLabel(detail.statut) }}</strong></div>
+            <div><span>Période</span><strong>{{ formatDemandePeriod(detail) }}</strong></div>
+            <div><span>Créneau</span><strong>{{ (detail.heureDebut || '--:--') + ' - ' + (detail.heureFin || '--:--') }}</strong></div>
+            <div><span>Envoyée à</span><strong>{{ getDemandeReceiverLabel(detail) }}</strong></div>
+            <div><span>Date validation</span><strong>{{ detail.dateValidation ? (detail.dateValidation | date:'dd/MM/yyyy HH:mm') : '-' }}</strong></div>
+            <div class="full"><span>Commentaire</span><strong>{{ detail.commentaire || '-' }}</strong></div>
+            <div class="full" *ngIf="detail.motifRejet"><span>Motif rejet</span><strong>{{ detail.motifRejet }}</strong></div>
         </div>
     </section>
 </section>

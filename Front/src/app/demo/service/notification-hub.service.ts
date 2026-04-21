@@ -11,6 +11,7 @@ export interface WorkflowNotification {
     type: 'WORKFLOW_SUBMITTED' | 'WORKFLOW_APPROVED' | 'WORKFLOW_REJECTED' | 'WORKFLOW_REMINDER'
         | 'VERSION_CREATED' | 'WORKFLOW_MODIFICATION_REQUESTED'
         | 'WORKFLOW_SOUMIS' | 'WORKFLOW_VALIDE' | 'WORKFLOW_REJETE' | 'WORKFLOW_REVISION'
+        | 'ARRET_INFO'
         | 'DEMANDE_A_VALIDER';
     planningId: string;
     message: string;
@@ -194,6 +195,7 @@ export class NotificationHubService {
             WORKFLOW_REJETE:   'WORKFLOW_REJETE',
             WORKFLOW_REVISION: 'WORKFLOW_REVISION',
             DEMANDE_A_VALIDER: 'WORKFLOW_SOUMIS',
+            ARRET_INFO: 'ARRET_INFO',
             // Types legacy EF Core (compatibilité)
             WORKFLOW_SUBMITTED:              'WORKFLOW_SUBMITTED',
             WORKFLOW_APPROVED:               'WORKFLOW_APPROVED',
@@ -210,6 +212,10 @@ export class NotificationHubService {
      * SOUMIS/VALIDE/REJETE → page de validation du planning.
      */
     private defaultActionUrl(type: string, planningWeekId?: number): string {
+        if (type === 'ARRET_INFO') {
+            return '';
+        }
+
         if (planningWeekId) {
             const isForValidator = ['WORKFLOW_SOUMIS', 'WORKFLOW_SUBMITTED'].includes(type);
             return isForValidator

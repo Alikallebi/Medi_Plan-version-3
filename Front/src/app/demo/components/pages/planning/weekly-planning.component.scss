@@ -417,6 +417,20 @@
   box-shadow: 0 8px 16px -8px #64748b;
 }
 
+.emp-hs-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 /* ===== EMPLOYEE INFO BLOCK ===== */
 .emp-info {
   display: flex;

@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS demandes_utilisateur (
     planning_id INT NULL,
     service_id INT NOT NULL,
     date_evenement DATE NOT NULL,
+    date_fin_evenement DATE NULL DEFAULT NULL,
     type_demande VARCHAR(20) NOT NULL,
     heure_debut VARCHAR(5) NOT NULL,
     heure_fin VARCHAR(5) NOT NULL,
@@ -202,6 +203,17 @@ CREATE TABLE IF NOT EXISTS compteurs_utilisateur (
     user_id INT NOT NULL PRIMARY KEY,
     solde_rc_plus DECIMAL(10,2) NOT NULL DEFAULT 0,
     solde_rc_moins DECIMAL(10,2) NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS absence_types (
+    code VARCHAR(20) NOT NULL PRIMARY KEY,
+    label VARCHAR(120) NOT NULL,
+    description VARCHAR(400) NOT NULL,
+    color VARCHAR(20) NOT NULL,
+    impact VARCHAR(20) NOT NULL,
+    is_requestable TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
 
@@ -244,6 +256,7 @@ LEFT JOIN planning_assignments a ON a.planning_week_id = w.id;";
         await cmd.ExecuteNonQueryAsync();
 
         await EnsureDemandesSchemaAsync(connection);
+        await EnsureDemandeTypesSeedAsync(connection);
 
         // Ajouter l'index sur planning_week_id si absent (base existante sans ix_planning_week_id)
         const string checkIdxSql = @"
@@ -291,8 +304,69 @@ WHERE TABLE_SCHEMA = DATABASE()
         }
 
         await EnsureColumnAsync("planning_id", "ALTER TABLE demandes_utilisateur ADD COLUMN planning_id INT NULL AFTER user_id;");
+        await EnsureColumnAsync("date_fin_evenement", "ALTER TABLE demandes_utilisateur ADD COLUMN date_fin_evenement DATE NULL AFTER date_evenement;");
         await EnsureColumnAsync("valide_par", "ALTER TABLE demandes_utilisateur ADD COLUMN valide_par INT NULL AFTER statut;");
         await EnsureColumnAsync("date_validation", "ALTER TABLE demandes_utilisateur ADD COLUMN date_validation DATETIME NULL AFTER valide_par;");
+    }
+
+    private static async Task EnsureDemandeTypesSeedAsync(MySqlConnection connection)
+    {
+        var now = DateTime.UtcNow;
+
+        const string hasColumnSql = @"
+SELECT COUNT(*)
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'absence_types'
+  AND COLUMN_NAME = 'is_requestable';";
+        await using (var hasColumnCmd = new MySqlCommand(hasColumnSql, connection))
+        {
+            var exists = Convert.ToInt32(await hasColumnCmd.ExecuteScalarAsync()) > 0;
+            if (!exists)
+            {
+                await using var alterCmd = new MySqlCommand("ALTER TABLE absence_types ADD COLUMN is_requestable TINYINT(1) NOT NULL DEFAULT 1 AFTER impact;", connection);
+                await alterCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        const string upsertSql = @"
+INSERT INTO absence_types (code, label, description, color, impact, is_requestable, created_at, updated_at)
+VALUES (@code, @label, @description, @color, @impact, @isRequestable, @createdAt, @updatedAt)
+ON DUPLICATE KEY UPDATE
+    label = VALUES(label),
+    description = VALUES(description),
+    color = VALUES(color),
+    impact = VALUES(impact),
+    is_requestable = VALUES(is_requestable),
+    updated_at = VALUES(updated_at);";
+
+        var rows = new[]
+        {
+            new { Code = "HS", Label = "Heures supplémentaires", Description = "Heures travaillées au-delà de l'horaire planifié.", Color = "#2563eb", Impact = "positive", IsRequestable = true },
+            new { Code = "RC+", Label = "Récupération positive", Description = "Utilisation d'heures RC+ acquises précédemment.", Color = "#16a34a", Impact = "neutral", IsRequestable = false },
+            new { Code = "RC-", Label = "Récupération négative", Description = "Heures à récupérer ou déficit horaire à compenser.", Color = "#f59e0b", Impact = "negative", IsRequestable = false },
+            new { Code = "ABSENCE", Label = "Absence", Description = "Absence déclarée pendant un créneau planifié.", Color = "#f97316", Impact = "negative", IsRequestable = true },
+            new { Code = "ARRET", Label = "Arrêt", Description = "Arrêt de travail validé.", Color = "#ef4444", Impact = "negative", IsRequestable = false },
+            new { Code = "VA", Label = "Vacances annuelles", Description = "Congé annuel payé pris par l'employé.", Color = "#0ea5e9", Impact = "neutral", IsRequestable = true },
+            new { Code = "AS", Label = "Astreinte", Description = "Astreinte: l'employé reste disponible en cas de besoin.", Color = "#7c3aed", Impact = "positive", IsRequestable = true },
+            new { Code = "AT", Label = "Arrêt de travail", Description = "Arrêt maladie ou congé médical avec justificatif.", Color = "#dc2626", Impact = "negative", IsRequestable = false },
+            new { Code = "AL", Label = "Autorisation légale", Description = "Autorisation de sortie ou absence légale durant les heures de travail.", Color = "#d97706", Impact = "neutral", IsRequestable = true },
+            new { Code = "JR", Label = "Jour de repos", Description = "Jour de repos sans travail planifié.", Color = "#64748b", Impact = "neutral", IsRequestable = true }
+        };
+
+        foreach (var row in rows)
+        {
+            await using var cmd = new MySqlCommand(upsertSql, connection);
+            cmd.Parameters.AddWithValue("@code", row.Code);
+            cmd.Parameters.AddWithValue("@label", row.Label);
+            cmd.Parameters.AddWithValue("@description", row.Description);
+            cmd.Parameters.AddWithValue("@color", row.Color);
+            cmd.Parameters.AddWithValue("@impact", row.Impact);
+            cmd.Parameters.AddWithValue("@isRequestable", row.IsRequestable ? 1 : 0);
+            cmd.Parameters.AddWithValue("@createdAt", now);
+            cmd.Parameters.AddWithValue("@updatedAt", now);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     public async Task<PlanningData> GetPlanningAsync(
@@ -581,26 +655,7 @@ WHERE (@serviceId IS NULL OR o.service_id = @serviceId)
     AND (@weekStart IS NULL OR o.week_start = @weekStart)
     AND (
         @onlyValidated = 0
-        OR (
-            COALESCE(w.statut, w.workflow_status) = 'VALIDE'
-            AND w.workflow_config_id IS NOT NULL
-            AND EXISTS (
-                SELECT 1
-                FROM workflow_etapes e
-                WHERE e.workflow_config_id = w.workflow_config_id
-            )
-            AND EXISTS (
-                SELECT 1
-                FROM validation_history h
-                WHERE h.planning_week_id = w.id
-                  AND h.action = 'APPROUVE'
-                  AND h.etape = (
-                      SELECT COALESCE(MAX(e2.ordre), 0)
-                      FROM workflow_etapes e2
-                      WHERE e2.workflow_config_id = w.workflow_config_id
-                  )
-            )
-        )
+        OR COALESCE(w.statut, w.workflow_status) = 'VALIDE'
     )
 ORDER BY o.week_start DESC, o.service_id, o.day_index, o.personnel_id;";
 

@@ -4,6 +4,52 @@ namespace Backend.Planning;
 
 public sealed partial class PlanningStore
 {
+    public async Task<IReadOnlyList<DemandeTypeDefinition>> GetDemandeTypesAsync(bool requestableOnly = false)
+    {
+        await using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        const string sql = @"
+SELECT code, label, description, color, impact, is_requestable
+FROM absence_types
+WHERE (@requestableOnly = 0 OR is_requestable = 1)
+ORDER BY
+    CASE code
+        WHEN 'VA' THEN 1
+        WHEN 'AS' THEN 2
+        WHEN 'AT' THEN 3
+        WHEN 'AL' THEN 4
+        WHEN 'JR' THEN 5
+        WHEN 'HS' THEN 6
+        WHEN 'RC+' THEN 7
+        WHEN 'RC-' THEN 8
+        WHEN 'ABSENCE' THEN 9
+        WHEN 'ARRET' THEN 10
+        ELSE 99
+    END,
+    code;";
+
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@requestableOnly", requestableOnly ? 1 : 0);
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        var list = new List<DemandeTypeDefinition>();
+        while (await reader.ReadAsync())
+        {
+            list.Add(new DemandeTypeDefinition
+            {
+                Code = reader.GetString("code"),
+                Label = reader.GetString("label"),
+                Description = reader.GetString("description"),
+                Color = reader.GetString("color"),
+                Impact = reader.GetString("impact"),
+                IsRequestable = reader.GetBoolean("is_requestable")
+            });
+        }
+
+        return list;
+    }
+
     public async Task<UserTimeCounters> GetUserTimeCountersAsync(int userId)
     {
         await using var connection = new MySqlConnection(_connectionString);
@@ -47,8 +93,8 @@ LIMIT 1;";
         await connection.OpenAsync();
 
         const string sql = @"
-SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.type_demande, d.heure_debut, d.heure_fin,
-        d.duree_minutes, d.commentaire, d.statut, d.valide_par,
+SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.date_fin_evenement, d.type_demande, d.heure_debut, d.heure_fin,
+    d.duree_minutes, d.commentaire, d.statut, d.valide_par,
         TRIM(CONCAT(COALESCE(vp.prenom, ''), ' ', COALESCE(vp.nom, ''))) AS valide_par_nom,
         d.date_validation, d.motif_rejet, d.traite_par, d.traite_le,
         d.created_at, d.updated_at, d.source_assignment_id
@@ -80,7 +126,7 @@ ORDER BY d.date_evenement DESC, d.created_at DESC;";
         await connection.OpenAsync();
 
         const string sql = @"
-SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.type_demande, d.heure_debut, d.heure_fin,
+SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.date_fin_evenement, d.type_demande, d.heure_debut, d.heure_fin,
         d.duree_minutes, d.commentaire, d.statut, d.valide_par,
         TRIM(CONCAT(COALESCE(vp.prenom, ''), ' ', COALESCE(vp.nom, ''))) AS valide_par_nom,
         d.date_validation, d.motif_rejet, d.traite_par, d.traite_le,
@@ -110,37 +156,67 @@ ORDER BY d.created_at ASC;";
         if (dto.ServiceId <= 0) throw new InvalidOperationException("Service invalide.");
 
         var normalizedType = NormalizeRequestType(dto.Type);
-        var (start, end, durationMinutes) = ValidateAndComputeDuration(dto.HeureDebut, dto.HeureFin);
+        if (!await IsRequestTypeAllowedForUserAsync(normalizedType))
+        {
+            throw new InvalidOperationException("Ce type n'est pas autorisé pour une demande directe. Contactez votre responsable RH.");
+        }
+
+        var startDate = dto.Date.Date;
+        var endDate = (dto.DateFin ?? dto.Date).Date;
+        var isInformationalType = normalizedType == "AT";
+        var isRangeType = normalizedType is "VA" or "AS" or "AL" or "JR" or "ABSENCE";
+
+        if (isRangeType && endDate < startDate)
+        {
+            throw new InvalidOperationException("La date de fin doit être postérieure ou égale à la date de début.");
+        }
+
+        if (normalizedType == "AT" && startDate != DateTime.Today)
+        {
+            throw new InvalidOperationException("L'arrêt de travail ne peut être demandé que pour la date du jour.");
+        }
+
+        var (start, end, durationMinutes) = normalizedType == "HS"
+            ? ValidateAndComputeDuration(dto.HeureDebut, dto.HeureFin)
+            : isInformationalType
+                ? ("00:00", "00:00", 0)
+                : ("00:00", "00:00", Math.Max(1, (endDate - startDate).Days + 1) * 8 * 60);
         var now = DateTime.UtcNow;
 
         await using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        var validatorId = await ResolveResponsibleValidatorIdAsync(connection, dto.ServiceId, dto.Date)
-            ?? throw new InvalidOperationException("Aucun responsable de planning trouvé pour cette demande.");
+        int? validatorId = isInformationalType
+            ? null
+            : await ResolveResponsibleValidatorIdAsync(connection, dto.ServiceId, startDate)
+                ?? throw new InvalidOperationException("Aucun responsable de planning trouvé pour cette demande.");
 
-        var planningId = await ResolvePlanningWeekIdAsync(connection, dto.ServiceId, dto.Date);
+        var planningId = await ResolvePlanningWeekIdAsync(connection, dto.ServiceId, startDate);
+        var requestStatus = isInformationalType ? "INFORMATIF" : "EN_ATTENTE";
+        var endDateParameter = isInformationalType ? (object?)DBNull.Value : endDate;
 
         const string insertSql = @"
 INSERT INTO demandes_utilisateur
-    (user_id, planning_id, service_id, date_evenement, type_demande, heure_debut, heure_fin, duree_minutes,
+        (user_id, planning_id, service_id, date_evenement, date_fin_evenement, type_demande, heure_debut, heure_fin, duree_minutes,
      commentaire, statut, valide_par, created_at, updated_at, source_assignment_id)
 VALUES
-    (@userId, @planningId, @serviceId, @dateEvenement, @typeDemande, @heureDebut, @heureFin, @dureeMinutes,
-     @commentaire, 'EN_ATTENTE', @validePar, @createdAt, @updatedAt, @sourceAssignmentId);";
+    (@userId, @planningId, @serviceId, @dateEvenement, @dateFinEvenement, @typeDemande, @heureDebut, @heureFin, @dureeMinutes,
+     @commentaire, @statut, @validePar, @createdAt, @updatedAt, @sourceAssignmentId);";
 
         await using (var cmd = new MySqlCommand(insertSql, connection))
         {
             cmd.Parameters.AddWithValue("@userId", dto.UserId);
             cmd.Parameters.AddWithValue("@planningId", (object?)planningId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@serviceId", dto.ServiceId);
-            cmd.Parameters.AddWithValue("@dateEvenement", dto.Date.Date);
+            cmd.Parameters.AddWithValue("@dateEvenement", startDate);
+            cmd.Parameters.AddWithValue("@dateFinEvenement", endDateParameter);
             cmd.Parameters.AddWithValue("@typeDemande", normalizedType);
             cmd.Parameters.AddWithValue("@heureDebut", start);
             cmd.Parameters.AddWithValue("@heureFin", end);
             cmd.Parameters.AddWithValue("@dureeMinutes", durationMinutes);
             cmd.Parameters.AddWithValue("@commentaire", (object?)dto.Commentaire ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@validePar", validatorId);
+            cmd.Parameters.AddWithValue("@statut", requestStatus);
+            cmd.Parameters.AddWithValue("@validePar", (object?)validatorId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@createdAt", now);
             cmd.Parameters.AddWithValue("@updatedAt", now);
             cmd.Parameters.AddWithValue("@sourceAssignmentId", (object?)dto.SourceAssignmentId ?? DBNull.Value);
@@ -148,18 +224,34 @@ VALUES
         }
 
         var requestId = Convert.ToInt32(await new MySqlCommand("SELECT LAST_INSERT_ID();", connection).ExecuteScalarAsync());
-        await AddDemandeHistoryAsync(connection, requestId, "CREATED", dto.UserId, "Utilisateur", "Demande envoyée au responsable");
+        await AddDemandeHistoryAsync(connection, requestId, "CREATED", dto.UserId, "Utilisateur", isInformationalType
+            ? "Arrêt de travail enregistré comme information"
+            : "Demande envoyée au responsable");
 
-        await InsertDemandeNotificationAsync(
-            connection,
-            validatorId,
-            dto.UserId,
-            requestId,
-            planningId,
-            dto.ServiceId,
-            dto.Date,
-            normalizedType,
-            dto.Commentaire);
+        if (isInformationalType)
+        {
+            await InsertDemandeInfoNotificationAsync(
+                connection,
+                dto.UserId,
+                requestId,
+                planningId,
+                dto.ServiceId,
+                startDate,
+                dto.Commentaire);
+        }
+        else
+        {
+            await InsertDemandeNotificationAsync(
+                connection,
+                validatorId!.Value,
+                dto.UserId,
+                requestId,
+                planningId,
+                dto.ServiceId,
+                startDate,
+                normalizedType,
+                dto.Commentaire);
+        }
 
         return await GetRequestByIdAsync(connection, requestId)
             ?? throw new InvalidOperationException("La demande a été créée mais introuvable.");
@@ -171,7 +263,7 @@ VALUES
         await connection.OpenAsync();
 
         const string sql = @"
-SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.type_demande, d.heure_debut, d.heure_fin,
+SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.date_fin_evenement, d.type_demande, d.heure_debut, d.heure_fin,
              d.duree_minutes, d.commentaire, d.statut, d.valide_par,
              TRIM(CONCAT(COALESCE(vp.prenom, ''), ' ', COALESCE(vp.nom, ''))) AS valide_par_nom,
              d.date_validation, d.motif_rejet, d.traite_par, d.traite_le,
@@ -282,14 +374,10 @@ ORDER BY created_at ASC, id ASC;";
 
         await EnsureUserCounterRowAsync(connection, request.UserId, tx);
 
-        var weekStart = ToMonday(request.Date);
-        var weekEnd = weekStart.AddDays(6);
         var serviceName = await ResolveServiceNameByIdAsync(connection, request.ServiceId, tx) ?? $"Service {request.ServiceId}";
-        var weekId = await EnsureWeekAsync(connection, request.ServiceId.ToString(), serviceName, weekStart, weekEnd, tx);
-        var dayIndex = (int)(request.Date.Date - weekStart.Date).TotalDays;
         var now = DateTime.UtcNow;
 
-        await ApplyApprovedRequestToPlanningAsync(connection, tx, weekId, request, dayIndex, now);
+        await ApplyApprovedRequestToPlanningAsync(connection, tx, request, serviceName, now);
         await ApplyCountersOnApprovalAsync(connection, tx, request);
 
         const string updateSql = @"
@@ -387,6 +475,7 @@ WHERE id = @id;";
             UserId = reader.GetInt32("user_id"),
             ServiceId = reader.GetInt32("service_id"),
             Date = reader.GetDateTime("date_evenement"),
+            DateFin = IsNull(reader, "date_fin_evenement") ? null : reader.GetDateTime("date_fin_evenement"),
             Type = reader.GetString("type_demande"),
             HeureDebut = reader.GetString("heure_debut"),
             HeureFin = reader.GetString("heure_fin"),
@@ -415,8 +504,35 @@ WHERE id = @id;";
             "RC-" or "RC_MOINS" => "RC-",
             "ABSENCE" => "ABSENCE",
             "ARRET" => "ARRET",
+            "VA" => "VA",
+            "AS" => "AS",
+            "AT" => "AT",
+            "AL" => "AL",
+            "JR" => "JR",
             _ => throw new InvalidOperationException("Type de demande invalide.")
         };
+    }
+
+    private async Task<bool> IsRequestTypeAllowedForUserAsync(string normalizedType)
+    {
+        await using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        const string sql = @"
+SELECT is_requestable
+FROM absence_types
+WHERE code = @code
+LIMIT 1;";
+
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@code", normalizedType);
+        var result = await cmd.ExecuteScalarAsync();
+        if (result is null || result is DBNull)
+        {
+            return false;
+        }
+
+        return Convert.ToInt32(result) == 1;
     }
 
     private static (string Start, string End, int DurationMinutes) ValidateAndComputeDuration(string start, string end)
@@ -455,7 +571,7 @@ WHERE id = @id;";
     private async Task<UserPlanningRequestItem?> GetRequestByIdAsync(MySqlConnection connection, int id, MySqlTransaction? tx = null)
     {
         const string sql = @"
-SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.type_demande, d.heure_debut, d.heure_fin,
+SELECT d.id, d.user_id, d.service_id, d.date_evenement, d.date_fin_evenement, d.type_demande, d.heure_debut, d.heure_fin,
     d.duree_minutes, d.commentaire, d.statut, d.valide_par,
     TRIM(CONCAT(COALESCE(vp.prenom, ''), ' ', COALESCE(vp.nom, ''))) AS valide_par_nom,
     d.date_validation, d.motif_rejet, d.traite_par, d.traite_le,
@@ -485,11 +601,32 @@ ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at);";
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static async Task ApplyApprovedRequestToPlanningAsync(MySqlConnection connection, MySqlTransaction tx, string weekId, UserPlanningRequestItem request, int dayIndex, DateTime now)
+    private async Task ApplyApprovedRequestToPlanningAsync(MySqlConnection connection, MySqlTransaction tx, UserPlanningRequestItem request, string serviceName, DateTime now)
     {
         var normalizedType = NormalizeRequestType(request.Type);
+        var startDate = request.Date.Date;
+        var endDate = (request.DateFin ?? request.Date).Date;
 
-        if (normalizedType == "ARRET")
+        if (endDate < startDate)
+        {
+            endDate = startDate;
+        }
+
+        for (var currentDate = startDate; currentDate <= endDate; currentDate = currentDate.AddDays(1))
+        {
+            var weekStart = ToMonday(currentDate);
+            var weekEnd = weekStart.AddDays(6);
+            var weekId = await EnsureWeekAsync(connection, request.ServiceId.ToString(), serviceName, weekStart, weekEnd, tx);
+            var dayIndex = (int)(currentDate.Date - weekStart.Date).TotalDays;
+
+            await ApplyApprovedRequestForDateAsync(connection, tx, weekId, request, dayIndex, now, normalizedType, currentDate);
+        }
+    }
+
+    private async Task ApplyApprovedRequestForDateAsync(MySqlConnection connection, MySqlTransaction tx, string weekId, UserPlanningRequestItem request, int dayIndex, DateTime now, string normalizedType, DateTime currentDate)
+    {
+
+        if (normalizedType == "ARRET" || normalizedType == "AT")
         {
             const string deleteDayAssignmentsSql = @"
 DELETE FROM planning_assignments
@@ -504,11 +641,12 @@ WHERE planning_week_id = @weekId
                 await deleteCmd.ExecuteNonQueryAsync();
             }
 
-            await InsertPlanningAssignmentForRequestAsync(connection, tx, weekId, request, dayIndex, now, "arret", "ARRET");
+            var stopLabel = normalizedType == "AT" ? "AT" : "ARRET";
+            await InsertPlanningAssignmentForRequestAsync(connection, tx, weekId, request, dayIndex, now, "arret", stopLabel);
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.SourceAssignmentId) && (normalizedType == "RC-" || normalizedType == "ABSENCE"))
+        if (!string.IsNullOrWhiteSpace(request.SourceAssignmentId) && (normalizedType == "RC-" || normalizedType == "ABSENCE" || normalizedType == "AL"))
         {
             const string deleteSourceSql = @"
 DELETE FROM planning_assignments
@@ -526,6 +664,10 @@ WHERE planning_week_id = @weekId
             "RC+" => "rc_plus",
             "RC-" => "rc_moins",
             "ABSENCE" => "absence",
+            "VA" => "conges",
+            "AS" => "astreinte",
+            "AL" => "absence",
+            "JR" => "repos",
             _ => "jour"
         };
 
@@ -535,6 +677,10 @@ WHERE planning_week_id = @weekId
             "RC+" => "RC+",
             "RC-" => "RC-",
             "ABSENCE" => "Absence",
+            "VA" => "VA",
+            "AS" => "AS",
+            "AL" => "AL",
+            "JR" => "JR",
             _ => "Événement"
         };
 
@@ -617,6 +763,11 @@ FOR UPDATE;";
                 nextMinus += hours;
                 break;
             case "ARRET":
+            case "AT":
+            case "VA":
+            case "AS":
+            case "AL":
+            case "JR":
                 break;
         }
 
@@ -902,6 +1053,36 @@ VALUES (@userId, @type, @titre, @message, @planningId, @planningWeekId, @emetteu
         cmd.Parameters.AddWithValue("@planningId", (object?)planningWeekId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@planningWeekId", (object?)planningWeekId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@emetteurId", validatorId);
+        cmd.Parameters.AddWithValue("@lien", "/pages/mon-espace");
+        cmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task InsertDemandeInfoNotificationAsync(
+        MySqlConnection connection,
+        int demandeurId,
+        int demandeId,
+        int? planningWeekId,
+        int serviceId,
+        DateTime dateEvenement,
+        string? commentaire)
+    {
+        var safeComment = string.IsNullOrWhiteSpace(commentaire)
+            ? string.Empty
+            : $" Commentaire: {commentaire.Trim()}";
+
+        const string sql = @"
+INSERT INTO notifications (user_id, type, titre, message, planning_id, planning_week_id, emetteur_id, lien, date_creation)
+VALUES (@userId, @type, @titre, @message, @planningId, @planningWeekId, @emetteurId, @lien, @createdAt);";
+
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@userId", demandeurId);
+        cmd.Parameters.AddWithValue("@type", "ARRET_INFO");
+        cmd.Parameters.AddWithValue("@titre", "Arrêt de travail enregistré");
+        cmd.Parameters.AddWithValue("@message", $"Votre arrêt de travail #{demandeId} a été enregistré pour le {dateEvenement:dd/MM/yyyy} dans le service #{serviceId}.{safeComment}");
+        cmd.Parameters.AddWithValue("@planningId", (object?)planningWeekId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@planningWeekId", (object?)planningWeekId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@emetteurId", demandeurId);
         cmd.Parameters.AddWithValue("@lien", "/pages/mon-espace");
         cmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow);
         await cmd.ExecuteNonQueryAsync();

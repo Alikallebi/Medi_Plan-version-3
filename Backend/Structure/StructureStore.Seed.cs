@@ -210,7 +210,7 @@ VALUES
         };
 
         var specialites = new[] { "Cardiologie", "Pneumologie", "Neurologie", "Urgences", "Pédiatrie", "Oncologie", "Radiologie", "Néphrologie" };
-        var roles = new[] { "SUPER_ADMIN", "ADMIN", "CHEF", "PRATICIEN", "INFIRMIER", "CADRE" };
+        var roles = new[] { "SUPER_ADMIN", "CHEF_POLE", "CHEF_SERVICE", "STAFF" };
 
         const string existsSql = "SELECT 1 FROM utilisateurs WHERE email = @email LIMIT 1;";
         const string insertSql = @"

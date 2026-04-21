@@ -15,6 +15,7 @@ import { PerimeterService } from 'src/app/demo/service/perimeter.service';
 import { ServiceSelectionService } from 'src/app/demo/service/service-selection.service';
 import { WorkflowConfig } from 'src/app/features/workflow/models';
 import { WorkflowService } from 'src/app/features/workflow/services/workflow.service';
+import { normalizeRole, RoleNormalized } from 'src/app/features/workflow/models/user-context.model';
 
 @Component({
     selector: 'app-planning-page',
@@ -114,13 +115,13 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
     ) {}
 
     canAccessServiceDropdown(): boolean {
-        const userContext = this.authService.getCurrentUser();
-        if (!userContext?.roleNormalized) return false;
+        const role = this.getEffectiveRole();
+        if (!role) return false;
         
         // super-admin, admin-gta, validateur-rh, planificateur-rh : tous les services
         // chef-pole : les services de son pôle
         const allowedRoles = ['super-admin', 'admin-gta', 'validateur-rh', 'planificateur-rh', 'chef-pole'];
-        return allowedRoles.includes(userContext.roleNormalized);
+        return allowedRoles.includes(role);
     }
 
     getConnectedUserService(): string {
@@ -137,28 +138,38 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
 
     /** Super Admin ou Admin GTA */
     isAdmin(): boolean {
-        const r = this.authService.getCurrentUser()?.roleNormalized;
+        const r = this.getEffectiveRole();
         return r === 'super-admin' || r === 'admin-gta';
     }
 
     /** Chef de Service */
     isChefService(): boolean {
-        return this.authService.getCurrentUser()?.roleNormalized === 'chef-service';
+        return this.getEffectiveRole() === 'chef-service';
     }
 
     /** Chef de Pôle */
     isChefPole(): boolean {
-        return this.authService.getCurrentUser()?.roleNormalized === 'chef-pole';
+        return this.getEffectiveRole() === 'chef-pole';
     }
 
     /** Validateur RH */
     isValidateurRH(): boolean {
-        return this.authService.getCurrentUser()?.roleNormalized === 'validateur-rh';
+        return this.getEffectiveRole() === 'validateur-rh';
     }
 
     /** Planificateur RH */
     isPlanificateurRH(): boolean {
-        return this.authService.getCurrentUser()?.roleNormalized === 'planificateur-rh';
+        return this.getEffectiveRole() === 'planificateur-rh';
+    }
+
+    private getEffectiveRole(): RoleNormalized | null {
+        const userContext = this.authService.getCurrentUser();
+        if (userContext?.roleNormalized) {
+            return userContext.roleNormalized;
+        }
+
+        const rawRole = userContext?.role || localStorage.getItem('role') || '';
+        return rawRole ? normalizeRole(rawRole) : null;
     }
 
     /** Peut créer/modifier/sauvegarder un planning */
@@ -2212,8 +2223,8 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
         this.planningService.saveVersion({
             serviceId: this.currentService.id,
             serviceName: this.currentService.name,
-            weekStart: this.periodStart,
-            weekEnd: this.periodEnd,
+            weekStart: this.weekStart,
+            weekEnd: this.weekEnd,
             author,
             comment: action,
             assignmentsCount: this.allDaysPlanning.length

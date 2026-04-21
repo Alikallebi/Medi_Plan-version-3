@@ -90,4 +90,84 @@ export class WeeklyPlanningComponent {
         if (r === 'staff') return 'badge-staff';
         return 'badge-default';
     }
+
+    getEmployeeHsLabel(personnelId: string): string {
+        const totalMinutes = this.getEmployeeHsMinutes(personnelId);
+        if (!totalMinutes) {
+            return '';
+        }
+
+        return this.formatMinutesLabel(totalMinutes);
+    }
+
+    hasEmployeeHs(personnelId: string): boolean {
+        return this.getEmployeeHsMinutes(personnelId) > 0;
+    }
+
+    private getEmployeeHsMinutes(personnelId: string): number {
+        const personAssignments = this.assignments.filter(item => item.personnelId === personnelId);
+        let totalMinutes = 0;
+        const assignmentsByDay = new Map<number, Assignment[]>();
+
+        for (const assignment of personAssignments) {
+            const bucket = assignmentsByDay.get(assignment.day) ?? [];
+            bucket.push(assignment);
+            assignmentsByDay.set(assignment.day, bucket);
+        }
+
+        for (const dayAssignments of assignmentsByDay.values()) {
+            if (dayAssignments.some(item => this.isArretAssignment(item))) {
+                continue;
+            }
+
+            for (const assignment of dayAssignments) {
+                if (Array.isArray(assignment.events)) {
+                    for (const evt of assignment.events) {
+                        if (evt?.type === 'HS' && evt.startTime && evt.endTime) {
+                            totalMinutes += this.diffMinutes(evt.startTime, evt.endTime);
+                        }
+                    }
+                }
+
+                const directType = (assignment.eventType || assignment.type || '').toUpperCase();
+                if (directType === 'HS' && assignment.startTime && assignment.endTime) {
+                    totalMinutes += this.diffMinutes(assignment.startTime, assignment.endTime);
+                }
+            }
+        }
+
+        return totalMinutes;
+    }
+
+    private isArretAssignment(assignment: Assignment): boolean {
+        const directType = (assignment.eventType || assignment.type || '').toUpperCase();
+        if (directType === 'ARRET') {
+            return true;
+        }
+
+        return Array.isArray(assignment.events)
+            ? assignment.events.some(evt => evt?.type === 'ARRET')
+            : false;
+    }
+
+    private formatMinutesLabel(totalMinutes: number): string {
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return `${hours}h${minutes.toString().padStart(2, '0')}`;
+    }
+
+    private diffMinutes(startTime: string, endTime: string): number {
+        const start = this.toMinutes(startTime);
+        const endRaw = this.toMinutes(endTime);
+        const end = endRaw >= start ? endRaw : endRaw + 24 * 60;
+        return Math.max(end - start, 0);
+    }
+
+    private toMinutes(time: string): number {
+        const [h, m] = (time || '').split(':').map(value => Number(value));
+        if (!Number.isFinite(h) || !Number.isFinite(m)) {
+            return 0;
+        }
+        return h * 60 + m;
+    }
 }

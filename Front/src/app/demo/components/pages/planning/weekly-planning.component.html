@@ -32,6 +32,9 @@
                 </div>
                 <div class="emp-info">
                     <span class="emp-name">{{ person.prenom }} {{ person.nom }}</span>
+                    <span class="emp-hs-badge" *ngIf="hasEmployeeHs(person.id)" [title]="getEmployeeHsLabel(person.id)">
+                        {{ getEmployeeHsLabel(person.id) }}
+                    </span>
                     <span class="emp-role-badge" [ngClass]="getRoleBadgeClass(person.role)">{{ person.role }}</span>
                     <small class="emp-spec" *ngIf="person.specialty">{{ person.specialty }}</small>
                     <span class="plan-status-badge has-plan" *ngIf="personHasAnyAssignment(person.id)"

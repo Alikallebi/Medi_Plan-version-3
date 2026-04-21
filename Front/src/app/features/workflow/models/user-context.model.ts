@@ -146,60 +146,31 @@ export const ROLE_PERMISSIONS_MAP: Record<RoleNormalized, Partial<UserPermission
 };
 
 export function normalizeRole(role: string): RoleNormalized {
-    const roleMap: Record<string, RoleNormalized> = {
-        SUPER_ADMIN: 'super-admin',
-        'SUPER-ADMIN': 'super-admin',
-        'super-admin': 'super-admin',
-        'Super Admin': 'super-admin',
+    const raw = (role || '').trim();
+    if (!raw) return 'staff';
 
-        ADMIN_GTA: 'admin-gta',
-        'ADMIN-GTA': 'admin-gta',
-        'admin-gta': 'admin-gta',
-        'Admin GTA': 'admin-gta',
-        ADMIN: 'admin-gta',
+    const upper = raw.toUpperCase();
+    const normalized = upper
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\s\-]+/g, '_');
 
-        CHEF_DE_POLE: 'chef-pole',
-        'CHEF-DE-POLE': 'chef-pole',
-        'chef-pole': 'chef-pole',
-        'Chef de Pôle': 'chef-pole',
-        CHEF_POLE: 'chef-pole',
-        'CHEF-POLE': 'chef-pole',
-        'CHEF DE POLE': 'chef-pole',
+    if (normalized === 'SUPERADMIN' || normalized === 'SUPER_ADMIN' || normalized === 'SUPER_ADMINISTRATEUR') {
+        return 'super-admin';
+    }
 
-        CHEF_DE_SERVICE: 'chef-service',
-        'CHEF-DE-SERVICE': 'chef-service',
-        'chef-service': 'chef-service',
-        'Chef de Service': 'chef-service',
-        CHEF: 'chef-service',
+    if (normalized === 'CHEF_DE_POLE' || normalized === 'CHEF_POLE') {
+        return 'chef-pole';
+    }
 
-        VALIDATEUR_RH: 'validateur-rh',
-        'VALIDATEUR-RH': 'validateur-rh',
-        'validateur-rh': 'validateur-rh',
-        'Validateur RH': 'validateur-rh',
+    if (normalized === 'CHEF_DE_SERVICE' || normalized === 'CHEF_SERVICE' || normalized === 'CHEF') {
+        return 'chef-service';
+    }
 
-        PLANIFICATEUR_RH: 'planificateur-rh',
-        'PLANIFICATEUR-RH': 'planificateur-rh',
-        'planificateur-rh': 'planificateur-rh',
-        'planificateur rh': 'planificateur-rh',
-        'Planificateur RH': 'planificateur-rh',
+    if (normalized === 'STAFF' || normalized === 'PRATICIEN' || normalized === 'INFIRMIER' || normalized === 'CADRE') {
+        return 'staff';
+    }
 
-        PLANIFICATEUR_URGENCE: 'planificateur-urgence',
-        'planificateur-urgence': 'planificateur-urgence',
-        'Planificateur urgence': 'planificateur-urgence',
-
-        SUPERVISEUR_INTERNES: 'superviseur-internes',
-        'superviseur-internes': 'superviseur-internes',
-        'Superviseur internes': 'superviseur-internes',
-
-        PRATICIEN: 'staff',
-        INFIRMIER: 'staff',
-        CADRE: 'staff',
-        STAFF: 'staff',
-        staff: 'staff',
-        Staff: 'staff'
-    };
-
-    return roleMap[role] || 'staff';
+    return 'staff';
 }
 
 export function createUserContext(rawData: any): UserContext {

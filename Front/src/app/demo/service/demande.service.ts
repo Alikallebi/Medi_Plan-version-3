@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
-import { DemandeCreatePayload, DemandeHistoriqueItem, DemandeItem } from '../models/demande.model';
+import { DemandeCreatePayload, DemandeHistoriqueItem, DemandeItem, DemandeTypeDefinition } from '../models/demande.model';
 
 @Injectable({ providedIn: 'root' })
 export class DemandeService {
@@ -29,19 +30,37 @@ export class DemandeService {
         return this.http.get<DemandeItem[]>(`${this.apiUrl}/demandes/a-valider`, { params });
     }
 
+    getDemandeTypes(requestableOnly = false): Observable<DemandeTypeDefinition[]> {
+        const params = new HttpParams().set('requestableOnly', String(requestableOnly));
+        return this.http.get<DemandeTypeDefinition[]>(`${this.apiUrl}/demandes/types`, { params });
+    }
+
     getHistoriqueDemande(id: number, actingUserId: number): Observable<DemandeHistoriqueItem[]> {
         const params = new HttpParams().set('actingUserId', String(actingUserId));
         return this.http.get<DemandeHistoriqueItem[]>(`${this.apiUrl}/demandes/${id}/historique`, { params });
     }
 
     createDemande(actingUserId: number, demande: DemandeCreatePayload): Observable<DemandeItem> {
-        return this.http.post<DemandeItem>(`${this.apiUrl}/demandes`, {
+        const fullPayload = {
             actingUserId,
-            demande: {
+            ...demande,
+            userId: actingUserId,
+            startDate: demande.startDate ?? demande.date,
+            endDate: demande.endDate ?? demande.dateFin ?? demande.date,
+            startTime: demande.startTime ?? demande.heureDebut,
+            endTime: demande.endTime ?? demande.heureFin,
+            comment: demande.commentaire
+        };
+
+        return this.http.post<DemandeItem>(`${this.apiUrl}/requests`, fullPayload).pipe(
+            catchError(() => this.http.post<DemandeItem>(`${this.apiUrl}/demandes`, {
+                actingUserId,
+                demande: {
                 ...demande,
                 userId: actingUserId
             }
-        });
+            }))
+        );
     }
 
     validerDemande(id: number, actingUserId: number, validatorName: string): Observable<DemandeItem> {

@@ -303,6 +303,11 @@
   color: #374151;
 }
 
+.action-badge.info-only {
+  background: #e0f2fe;
+  color: #0c4a6e;
+}
+
 .status-badge {
   font-size: 0.7rem;
   font-weight: 600;

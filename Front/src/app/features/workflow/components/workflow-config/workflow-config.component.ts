@@ -55,23 +55,17 @@ export interface EtapeFormState {
 }
 
 export const ROLES_DISPONIBLES: { value: WorkflowRole; label: string }[] = [
-    { value: 'CHEF_SERVICE',           label: 'Chef de Service' },
-    { value: 'CHEF_POLE',              label: 'Chef de Pôle' },
-    { value: 'VALIDATEUR_RH',          label: 'Validateur RH' },
-    { value: 'PLANIFICATEUR_URGENCE',  label: 'Planificateur urgence' },
-    { value: 'SUPERVISEUR_INTERNES',   label: 'Superviseur internes' },
-    { value: 'ADMIN_GTA',             label: 'Administrateur GTA' },
-    { value: 'SUPER_ADMIN',           label: 'Super Administrateur' },
+    { value: 'SUPER_ADMIN',   label: 'Super Administrateur' },
+    { value: 'CHEF_POLE',     label: 'Chef de Pôle' },
+    { value: 'CHEF_SERVICE',  label: 'Chef de Service' },
+    { value: 'STAFF',         label: 'Staff' },
 ];
 
 const ROLE_LABELS: Partial<Record<WorkflowRole, string>> = {
-    CHEF_SERVICE:          'Chef de Service',
-    CHEF_POLE:             'Chef de Pôle',
-    VALIDATEUR_RH:         'Validateur RH',
-    PLANIFICATEUR_URGENCE: 'Planificateur urgence',
-    SUPERVISEUR_INTERNES:  'Superviseur internes',
-    ADMIN_GTA:             'Administrateur GTA',
-    SUPER_ADMIN:           'Super Administrateur',
+    SUPER_ADMIN:  'Super Administrateur',
+    CHEF_POLE:    'Chef de Pôle',
+    CHEF_SERVICE: 'Chef de Service',
+    STAFF:        'Staff',
 };
 
 @Component({

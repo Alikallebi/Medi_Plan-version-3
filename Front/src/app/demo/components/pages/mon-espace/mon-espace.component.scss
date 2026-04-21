@@ -359,6 +359,11 @@
     color: #9b2c2c;
 }
 
+.info-note {
+    color: #2563eb;
+    font-weight: 600;
+}
+
 .request-icon {
     display: inline-flex;
     align-items: center;
@@ -491,6 +496,10 @@
     background: #f0a63d;
 }
 
+.status-info {
+    background: #3b82f6;
+}
+
 .status-approved {
     background: #2c7da0;
 }
@@ -585,5 +594,89 @@
 
     .status-pill {
         margin-left: 2.9rem;
+    }
+}
+
+.code-legend {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #dbe7f3;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(22, 50, 73, 0.05);
+}
+
+.code-legend header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #17324d;
+}
+
+.code-legend header p {
+    margin: 0.25rem 0 0.8rem;
+    color: #60798f;
+}
+
+.legend-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.legend-item {
+    --legend-color: #64748b;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--legend-color) 35%, white);
+    background: color-mix(in srgb, var(--legend-color) 10%, white);
+    border-radius: 14px;
+    padding: 0.65rem 0.7rem;
+}
+
+.legend-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    background: var(--legend-color);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+.legend-item strong {
+    color: #17324d;
+}
+
+.legend-item p {
+    margin: 0.2rem 0 0;
+    color: #60798f;
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+
+.event-code-badge {
+    --demande-type-color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 999px;
+    background: var(--demande-type-color);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+@media (max-width: 860px) {
+    .legend-grid {
+        grid-template-columns: 1fr;
     }
 }

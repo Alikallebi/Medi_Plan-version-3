@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { Assignment, Conflict, PlanningData, PlanningHistoryEntry, Personnel, PlanningStats, PlanningVersion, Rule, ShiftType } from '../api/planning.models';
+import { Assignment, Conflict, PlanningData, PlanningEvent, PlanningHistoryEntry, PlanningNotification, Personnel, PlanningStats, PlanningVersion, Rule, ShiftType } from '../api/planning.models';
 import { ConflictDetectionService } from './conflict-detection.service';
 import { PerimeterService, PerimeterFilter } from './perimeter.service';
 import { environment } from 'src/environments/environment';
@@ -286,6 +286,70 @@ export class PlanningService {
         );
     }
 
+    applyArretNotification(notification: PlanningNotification): void {
+        const planning = this.currentPlanningSubject.value;
+        if (!planning) {
+            return;
+        }
+
+        const startDate = this.toDateOnly(new Date(notification.startDate));
+        const endDate = this.toDateOnly(new Date(notification.endDate));
+        const weekStart = this.toDateOnly(new Date(planning.weekStart));
+        const updatedAssignments: Assignment[] = planning.assignments.map((assignment): Assignment => {
+            if (assignment.personnelId !== notification.employeeId) {
+                return assignment;
+            }
+
+            const dayDate = this.toDateOnly(this.addDays(weekStart, assignment.day));
+            if (dayDate < startDate || dayDate > endDate) {
+                return assignment;
+            }
+
+            const arretEvent: PlanningEvent = {
+                id: `arret-${assignment.personnelId}-${assignment.day}`,
+                type: 'ARRET',
+                startDate: notification.startDate,
+                endDate: notification.endDate,
+                reason: notification.message,
+                status: 'info_only'
+            };
+
+            const nestedEvents = Array.isArray(assignment.events)
+                ? assignment.events.filter(event => event.type !== 'ARRET')
+                : [];
+
+            return {
+                ...assignment,
+                eventType: 'ARRET' as const,
+                type: 'ARRET' as const,
+                reason: notification.message,
+                status: 'info_only' as const,
+                startDate: notification.startDate,
+                endDate: notification.endDate,
+                events: [arretEvent, ...nestedEvents],
+                updatedAt: new Date()
+            };
+        });
+
+        const nextPlanning: PlanningData = {
+            ...planning,
+            assignments: updatedAssignments,
+            history: [
+                {
+                    id: `arret-${Date.now()}`,
+                    at: new Date(),
+                    author: 'Système',
+                    action: 'ARRET',
+                    details: notification.message
+                },
+                ...planning.history
+            ],
+            conflicts: this.conflictDetectionService.detectConflicts({ ...planning, assignments: updatedAssignments })
+        };
+
+        this.persist(nextPlanning);
+    }
+
     getStats(planning: PlanningData): PlanningStats {
         const totalPosts = planning.personnel.length * 7;
         const coveredPosts = planning.assignments.length;
@@ -413,6 +477,12 @@ export class PlanningService {
         const normalized = new Date(date);
         normalized.setHours(0, 0, 0, 0);
         return normalized;
+    }
+
+    private addDays(date: Date, days: number): Date {
+        const next = new Date(date);
+        next.setDate(next.getDate() + days);
+        return next;
     }
 
     private createCacheKey(serviceId: string, weekStart: Date): string {

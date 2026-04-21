@@ -20,8 +20,22 @@ public sealed partial class PlanningStore
         await connection.OpenAsync();
         await using var tx = await connection.BeginTransactionAsync();
 
-        var weekId = await EnsureWeekAsync(connection, serviceId, normalizedServiceName, start, end, tx);
-        var assignments = await GetAssignmentsAsync(connection, weekId, tx);
+                int assignmentsCountFromDb = 0;
+                const string assignmentsCountSql = @"
+SELECT COUNT(a.id)
+FROM planning_assignments a
+INNER JOIN planning_weeks w ON w.id = a.planning_week_id
+WHERE w.service_id = @serviceId
+    AND w.week_start = @start
+    AND w.week_end = @end;";
+
+                await using (var assignmentsCountCmd = new MySqlCommand(assignmentsCountSql, connection, tx))
+                {
+                        assignmentsCountCmd.Parameters.AddWithValue("@serviceId", serviceId);
+                        assignmentsCountCmd.Parameters.AddWithValue("@start", start);
+                        assignmentsCountCmd.Parameters.AddWithValue("@end", end);
+                        assignmentsCountFromDb = Convert.ToInt32(await assignmentsCountCmd.ExecuteScalarAsync() ?? 0);
+                }
 
         const string countSql = @"
 SELECT COUNT(*)
@@ -39,7 +53,7 @@ WHERE service_id = @serviceId
         var versionId = Guid.NewGuid().ToString();
         var versionLabel = $"V{existingCount + 1:00}";
         var effectiveAuthor = string.IsNullOrWhiteSpace(author) ? "Gestionnaire" : author;
-        var assignmentsCount = assignmentsCountOverride ?? assignments.Count;
+        var assignmentsCount = assignmentsCountOverride ?? assignmentsCountFromDb;
         var fileName = $"planning-{serviceId}-{start:yyyyMMdd}-{versionLabel.ToLowerInvariant()}.json";
 
         const string insertSql = @"

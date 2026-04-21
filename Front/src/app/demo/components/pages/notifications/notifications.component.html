@@ -57,8 +57,11 @@
         </div>
         <p class="message">{{ n.message }}</p>
         <div class="notification-footer">
-          <span class="action-badge" [ngClass]="getActionClass(n.type)">
+          <span class="action-badge" *ngIf="!isInfoOnlyNotification(n.type)" [ngClass]="getActionClass(n.type)">
             {{ getActionLabel(n.type) }}
+          </span>
+          <span class="action-badge info-only" *ngIf="isInfoOnlyNotification(n.type)">
+            Information
           </span>
           <span class="status-badge" [class.read]="n.isRead">
             {{ n.isRead ? 'Lue' : 'Non lue' }}

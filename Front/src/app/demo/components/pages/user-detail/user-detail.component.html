@@ -9,7 +9,7 @@
       <button pButton type="button" class="p-button-outlined" (click)="goBack()">
         <i class="pi pi-arrow-left"></i> Précédent
       </button>
-      <button pButton type="button" class="p-button-primary" (click)="editUser()">
+      <button pButton type="button" class="p-button-primary" *ngIf="canEditUser()" (click)="editUser()">
         <i class="pi pi-pencil"></i> Modifier
       </button>
     </div>
@@ -132,8 +132,8 @@
 
         <!-- Header with month navigation -->
         <div class="planning-header">
-          <h3>Planning du mois</h3>
-          <div class="month-nav">
+          <h3>{{ planningViewMode === 'week' ? 'Planning de la semaine' : 'Planning du mois' }}</h3>
+          <div class="month-nav" *ngIf="planningViewMode === 'month'">
             <button class="month-nav-btn" (click)="prevMonth()" title="Mois précédent">
               <i class="pi pi-chevron-left"></i>
             </button>
@@ -142,6 +142,14 @@
               <i class="pi pi-chevron-right"></i>
             </button>
           </div>
+          <div class="month-nav" *ngIf="planningViewMode === 'week'">
+            <span class="month-label">Semaine: {{ currentWeekLabel }}</span>
+          </div>
+        </div>
+
+        <div class="planning-stats-row">
+          <button pButton type="button" class="p-button-outlined" [class.p-button-secondary]="planningViewMode !== 'week'" label="Semaine" (click)="setPlanningViewMode('week')"></button>
+          <button pButton type="button" class="p-button-outlined" [class.p-button-secondary]="planningViewMode !== 'month'" label="Mois" (click)="setPlanningViewMode('month')"></button>
         </div>
 
         <!-- Stats pills -->
@@ -172,7 +180,7 @@
         <div class="planning-list-modern">
           <div *ngIf="filteredPlannings.length === 0" class="planning-empty">
             <i class="pi pi-calendar-times"></i>
-            <p>Aucun planning pour ce mois</p>
+            <p>{{ planningEmptyLabel }}</p>
           </div>
           <div *ngFor="let plan of filteredPlannings"
                class="planning-list-row"
@@ -239,10 +247,13 @@
     <div class="right-column">
       <div class="card actions-card">
         <h3>Actions rapides</h3>
-        <div class="action-item" (click)="sendEmail()"><i class="pi pi-envelope"></i> <span>Envoyer un email</span></div>
-        <div class="action-item" (click)="viewPlanning()"><i class="pi pi-calendar"></i> <span>Voir planning</span></div>
-        <div class="action-item" (click)="resetPassword()"><i class="pi pi-key"></i> <span>Réinitialiser MDP</span></div>
-        <div class="action-item danger" (click)="deactivateAccount()"><i class="pi pi-ban"></i> <span>Désactiver</span></div>
+        <div class="action-item" (click)="sendEmail()">
+          <i class="pi pi-envelope"></i>
+          <span>{{ isStaffViewer() ? 'Contacter Super Admin' : 'Envoyer un email' }}</span>
+        </div>
+        <div class="action-item" (click)="viewPlanning()"><i class="pi pi-calendar"></i> <span>Voir planning (semaine)</span></div>
+        <div class="action-item" (click)="resetPassword()"><i class="pi pi-key"></i> <span>{{ getResetPasswordLabel() }}</span></div>
+        <div class="action-item danger" *ngIf="canDeactivateUser()" (click)="deactivateAccount()"><i class="pi pi-ban"></i> <span>Désactiver</span></div>
       </div>
 
       <div class="card affectation-summary" *ngIf="getPrimaryAffectation()">
@@ -320,11 +331,25 @@
   </p-dialog>
 
   <p-dialog [(visible)]="showResetPasswordModal" header="Réinitialiser mot de passe" [modal]="true" [style]="{ width: '90vw', maxWidth: '500px' }">
-    <p-radioButton name="opt1" value="sendEmail" [(ngModel)]="resetPasswordOption" label="Envoyer un email"></p-radioButton>
-    <p-radioButton name="opt2" value="generateTemp" [(ngModel)]="resetPasswordOption" label="Générer mot de passe temporaire"></p-radioButton>
+    <ng-container *ngIf="isStaffViewer(); else adminResetPasswordOptions">
+      <div class="modal-content">
+        <div class="form-group">
+          <label>Nouveau mot de passe</label>
+          <input type="password" [(ngModel)]="staffPasswordForm.password" />
+        </div>
+        <div class="form-group">
+          <label>Confirmer le mot de passe</label>
+          <input type="password" [(ngModel)]="staffPasswordForm.confirmPassword" />
+        </div>
+      </div>
+    </ng-container>
+    <ng-template #adminResetPasswordOptions>
+      <p-radioButton name="opt1" value="sendEmail" [(ngModel)]="resetPasswordOption" label="Envoyer un email"></p-radioButton>
+      <p-radioButton name="opt2" value="generateTemp" [(ngModel)]="resetPasswordOption" label="Générer mot de passe temporaire"></p-radioButton>
+    </ng-template>
     <ng-template pTemplate="footer">
       <button pButton type="button" label="Annuler" (click)="closeResetPasswordModal()" class="p-button-text"></button>
-      <button pButton type="button" label="Confirmer" (click)="confirmResetPassword()" class="p-button-primary"></button>
+      <button pButton type="button" [label]="isStaffViewer() ? 'Modifier' : 'Confirmer'" [loading]="changingPassword" (click)="confirmResetPassword()" class="p-button-primary"></button>
     </ng-template>
   </p-dialog>
 

@@ -77,7 +77,13 @@
                 </button>
             </section>
 
-            <section class="day-view" *ngIf="hasPlanning && activeViewMode === 'day'">
+            <section class="empty-state" *ngIf="hasPlanning && isActivePeriodEmpty">
+                <i class="pi pi-calendar-times"></i>
+                <h3>Aucun planning sur cette période</h3>
+                <p>{{ noPlanningForActivePeriodMessage }}</p>
+            </section>
+
+            <section class="day-view" *ngIf="hasPlanning && activeViewMode === 'day' && !isActivePeriodEmpty">
                 <header class="day-view__header">
                     <h3 class="day-view__title">Répartition des affectations - {{ getPeriodLabel() }}</h3>
                     <span class="day-view__count-badge">{{ dayTimelineRows.length }} personne(s)</span>
@@ -206,7 +212,7 @@
                 </div>
             </section>
 
-            <section class="calendar-month" *ngIf="hasPlanning && activeViewMode === 'month'">
+            <section class="calendar-month" *ngIf="hasPlanning && activeViewMode === 'month' && !isActivePeriodEmpty">
                 <div class="planning-table-scroll">
                 <div class="month-grid">
                     <article
@@ -275,7 +281,7 @@
                 </div>
             </section>
 
-            <section class="week-view" *ngIf="hasPlanning && activeViewMode === 'week'">
+            <section class="week-view" *ngIf="hasPlanning && activeViewMode === 'week' && !isActivePeriodEmpty">
                 <!-- Mobile navigation helpers for one-column view -->
                 <div class="week-view__mobile-nav" aria-label="Navigation semaine">
                     <button type="button" class="week-view__nav-btn" (click)="previousPeriod()" aria-label="Semaine précédente">

@@ -1,0 +1,14 @@
+{
+  "faq": {
+    "workflow": "Le workflow valide un planning en plusieurs etapes (N1, N2, RH/final selon la configuration du service). Chaque action est tracee dans l'historique.",
+    "notifications": "Les notifications sont generees a chaque soumission, validation, rejet ou demande de modification."
+  },
+  "rules": {
+    "repos_garde": "Apres une garde, un repos minimal de 11 heures consecutives doit etre respecte.",
+    "night_shift": "Les enchainements de nuits doivent respecter les regles de fatigue et les quotas locaux du service."
+  },
+  "procedures": {
+    "absence": "Pour une demande d'absence: 1) Ouvrir Mon espace > Demandes, 2) Choisir la date et le type, 3) Ajouter un commentaire, 4) Envoyer pour validation.",
+    "recuperation": "Pour une recuperation (RC+): verifier votre solde, choisir la plage horaire, puis envoyer la demande."
+  }
+}

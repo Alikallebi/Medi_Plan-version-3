@@ -1,0 +1,70 @@
+<button type="button" class="chatbot-toggle" (click)="toggle()" aria-label="Ouvrir ou fermer l'assistant">
+  <span class="chatbot-icon" aria-hidden="true">💬</span>
+</button>
+
+<section class="chatbot-panel" *ngIf="isOpen" aria-label="Assistant MediPlan">
+  <header class="chatbot-header">
+    <div class="title-wrap">
+      <div class="brand-line">
+        <span class="status-dot" aria-hidden="true"></span>
+        <h3 class="brand-label">Assistant MediPlan</h3>
+      </div>
+      <small>Questions planning, accès, demandes et workflow selon votre profil.</small>
+    </div>
+
+    <div class="header-actions">
+      <button type="button" class="link-btn" (click)="clearConversation()">Réinitialiser</button>
+      <button type="button" class="link-btn" (click)="toggle()" aria-label="Fermer l'assistant">Fermer</button>
+    </div>
+  </header>
+
+  <div class="chatbot-meta">
+    <span class="meta-chip">{{ roleLabel }}</span>
+    <span class="meta-chip meta-chip-soft">{{ roleHint }}</span>
+  </div>
+
+  <div class="chatbot-body" #chatBody>
+    <div class="chatbot-hint">
+      Je peux vous aider à retrouver un planning, suivre une demande, consulter vos droits ou comprendre une validation workflow.
+    </div>
+
+    <div class="empty-state" *ngIf="messages.length === 0">
+      <div class="empty-title">Aucune conversation</div>
+      <div class="empty-copy">Posez une question ou utilisez une suggestion rapide ci-dessous.</div>
+    </div>
+
+    <div class="message" *ngFor="let m of messages" [ngClass]="m.role">
+      <div class="avatar">{{ m.role === 'assistant' ? 'M' : 'Vous' }}</div>
+      <div class="bubble">{{ m.text }}</div>
+      <div class="message-time">{{ formatTime(m.at) }}</div>
+    </div>
+
+    <div class="typing" *ngIf="isLoading">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span>Analyse en cours...</span>
+    </div>
+  </div>
+
+  <div class="suggestions" *ngIf="suggestions.length > 0">
+    <span class="suggestions-label">Suggestions</span>
+    <button type="button" class="suggestion-btn" *ngFor="let suggestion of suggestions" (click)="useSuggestion(suggestion)">
+      {{ suggestion }}
+    </button>
+  </div>
+
+  <form class="chatbot-input" (ngSubmit)="send()">
+    <textarea
+      [(ngModel)]="text"
+      name="chatbotText"
+      rows="3"
+      placeholder="Tapez votre question..."
+      aria-label="Message à envoyer"
+      [disabled]="isLoading"></textarea>
+
+    <div class="input-actions">
+      <button type="submit" class="send-btn" [disabled]="!text.trim() || isLoading">Envoyer</button>
+    </div>
+  </form>
+</section>

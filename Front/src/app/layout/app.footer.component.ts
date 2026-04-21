@@ -8,7 +8,7 @@ import { Router } from '@angular/router';
 })
 export class AppFooterComponent {
     currentYear = new Date().getFullYear();
-    showSocial = false; // Mettre à true si vous avez des liens sociaux
+    showSocial = false;
 
     constructor(private router: Router) {}
 

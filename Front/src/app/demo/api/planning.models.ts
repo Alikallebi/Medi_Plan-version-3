@@ -1,5 +1,9 @@
 export type ShiftType = 'jour' | 'nuit' | 'garde' | 'astreinte' | 'repos' | 'conges' | 'formation';
 
+export type PlanningEventType = 'HS' | 'VA' | 'JR' | 'AS' | 'ABSENCE' | 'AL' | 'ARRET';
+
+export type PlanningEventStatus = 'pending' | 'approved' | 'rejected' | 'info_only';
+
 export type PersonnelCategory = 'medecin' | 'infirmier' | 'autre' | 'vacant';
 
 export type PersonnelStatus = 'disponible' | 'indisponible' | 'conges' | 'formation';
@@ -32,8 +36,46 @@ export interface Assignment {
     startTime?: string;
     endTime?: string;
     note?: string;
+    eventType?: PlanningEventType;
+    type?: PlanningEventType;
+    reason?: string;
+    linkedHsId?: string;
+    status?: PlanningEventStatus;
+    startDate?: string;
+    endDate?: string;
+    events?: PlanningEvent[];
     createdAt?: Date;
     updatedAt?: Date;
+}
+
+export interface PlanningSlot {
+    employeeId: string;
+    date: string;
+    shift?: { startTime: string; endTime: string };
+    events: PlanningEvent[];
+}
+
+export interface PlanningEvent {
+    id?: string;
+    type: PlanningEventType;
+    startDate: string;
+    endDate: string;
+    startTime?: string;
+    endTime?: string;
+    reason?: string;
+    linkedHsId?: string;
+    status: PlanningEventStatus;
+}
+
+export interface PlanningNotification {
+    type: 'info';
+    recipientId: string;
+    employeeId: string;
+    eventType: 'ARRET';
+    message: string;
+    startDate: string;
+    endDate: string;
+    requiresAction: false;
 }
 
 export interface PlanningPoste {
