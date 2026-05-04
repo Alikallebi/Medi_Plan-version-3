@@ -1,0 +1,65 @@
+@startuml
+' Diagramme d'etats-transition du workflow de planning
+' Base sur le backend reel :
+' - Backend/Planning/PlanningStore.WorkflowExecution.cs
+' - Front/src/app/demo/components/pages/planning/planning-page.component.ts
+
+hide empty description
+skinparam BackgroundColor white
+skinparam Shadowing false
+skinparam state {
+  BackgroundColor #F8FAFC
+  BorderColor #475569
+  FontColor #0F172A
+}
+skinparam ArrowColor #334155
+
+title Workflow d'un planning hebdomadaire
+
+[*] --> BROUILLON : creation / edition
+
+state "BROUILLON" as BROUILLON
+state "EN_ATTENTE_VALIDATION" as EN_ATTENTE_VALIDATION
+state "EN_ATTENTE_VALIDATION_FINALE" as EN_ATTENTE_VALIDATION_FINALE
+state "VALIDE" as VALIDE
+state "REJETE" as REJETE
+
+note right of BROUILLON
+Soumission autorisee si :
+- au moins une affectation existe
+- une configuration workflow active existe
+- le planning n'est pas deja valide
+end note
+
+BROUILLON --> EN_ATTENTE_VALIDATION : soumettre()
+BROUILLON --> VALIDE : soumettre() / auto-approbation\nsi toutes les etapes sauf finale sont couvertes
+REJETE --> EN_ATTENTE_VALIDATION : re-soumettre()
+REJETE --> VALIDE : re-soumettre() / auto-approbation
+
+EN_ATTENTE_VALIDATION --> EN_ATTENTE_VALIDATION : approuverEtape()\n[etape suivante normale]
+EN_ATTENTE_VALIDATION --> EN_ATTENTE_VALIDATION_FINALE : approuverEtape()\n[etape suivante = Super Admin]
+EN_ATTENTE_VALIDATION --> VALIDE : approuverEtape()\n[aucune etape suivante]
+EN_ATTENTE_VALIDATION --> REJETE : rejeterPlanning()
+EN_ATTENTE_VALIDATION --> BROUILLON : demanderModification()
+
+EN_ATTENTE_VALIDATION_FINALE --> VALIDE : approuverEtape()\n[validation finale]
+EN_ATTENTE_VALIDATION_FINALE --> REJETE : rejeterPlanning()
+EN_ATTENTE_VALIDATION_FINALE --> BROUILLON : demanderModification()
+
+VALIDE --> [*]
+REJETE --> [*] : fin du cycle courant
+
+note bottom
+Etats reellement persistés dans planning_weeks.statut :
+- BROUILLON
+- EN_ATTENTE_VALIDATION
+- EN_ATTENTE_VALIDATION_FINALE
+- VALIDE
+- REJETE
+
+L'etat EN_CORRECTION existe dans un ancien modele abstrait,
+mais le backend courant remet directement le planning en BROUILLON
+lors d'une demande de modification.
+end note
+
+@enduml

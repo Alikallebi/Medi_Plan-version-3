@@ -23,6 +23,7 @@ public sealed class PersonnelInfo
     public string Poste { get; set; } = "Personnel";
     public string? Specialite { get; set; }
     public string? Photo { get; set; }
+    public List<int> CompetenceIds { get; set; } = [];
 }
 
 public sealed class PlanningRule
@@ -129,6 +130,109 @@ public sealed class SavePlanningVersionRequest
     public string? Author { get; set; }
     public string? Comment { get; set; }
     public int AssignmentsCount { get; set; }
+}
+
+public sealed class GeneratePlanningConstraints
+{
+    public bool UserAcceptedMandatoryRules { get; set; }
+    public DateTime? UserAcceptedAtUtc { get; set; }
+
+    public bool RequirePostCoverage { get; set; } = false;
+    public bool EnforceSlotIncompatibilities { get; set; } = true;
+    public bool RespectReposLegaux { get; set; } = true;
+    public bool CompetencesObligatoires { get; set; } = true;
+    public bool EnforceBlockingUnavailabilities { get; set; } = true;
+    public bool EnforceMaxDailyDuration12h { get; set; } = true;
+    public bool EnforceSecurityRestAfterGuardOrNight { get; set; } = true;
+    public bool EnforceMaxConsecutiveDays6 { get; set; } = true;
+    public bool EnforceWeeklyRest35hSimplified { get; set; } = true;
+    public bool EnforceMonthlyNightQuota { get; set; } = true;
+    public bool PreserveLockedAssignments { get; set; } = true;
+    public int MaxMonthlyNightShifts { get; set; } = 4;
+    public bool PrioriserDisponibilites { get; set; } = true;
+
+    public List<string> GetUnacceptedMandatoryRules()
+    {
+        var missing = new List<string>();
+
+        if (!UserAcceptedMandatoryRules)
+        {
+            missing.Add("user_accepted_mandatory_rules");
+        }
+        else if (!UserAcceptedAtUtc.HasValue)
+        {
+            missing.Add("user_accepted_at_utc");
+        }
+
+        if (!RequirePostCoverage)
+        {
+            missing.Add("require_post_coverage");
+        }
+
+        if (!EnforceSlotIncompatibilities)
+        {
+            missing.Add("enforce_slot_incompatibilities");
+        }
+
+        if (!CompetencesObligatoires)
+        {
+            missing.Add("competences_obligatoires");
+        }
+
+        if (!EnforceBlockingUnavailabilities)
+        {
+            missing.Add("enforce_blocking_unavailabilities");
+        }
+
+        if (!EnforceMaxDailyDuration12h)
+        {
+            missing.Add("enforce_max_daily_duration_12h");
+        }
+
+        if (!EnforceSecurityRestAfterGuardOrNight)
+        {
+            missing.Add("enforce_security_rest_after_guard_or_night");
+        }
+
+        if (!EnforceMaxConsecutiveDays6)
+        {
+            missing.Add("enforce_max_consecutive_days_6");
+        }
+
+        if (!EnforceWeeklyRest35hSimplified)
+        {
+            missing.Add("enforce_weekly_rest_35h_simplified");
+        }
+
+        if (!EnforceMonthlyNightQuota)
+        {
+            missing.Add("enforce_monthly_night_quota");
+        }
+
+        if (!PreserveLockedAssignments)
+        {
+            missing.Add("preserve_locked_assignments");
+        }
+
+        return missing;
+    }
+}
+
+public sealed class GeneratePlanningRequest
+{
+    public int ServiceId { get; set; }
+    public DateTime WeekStart { get; set; }
+    public DateTime WeekEnd { get; set; }
+    public GeneratePlanningConstraints Constraints { get; set; } = new();
+}
+
+public sealed class GeneratePlanningResponse
+{
+    public List<PlanningAssignment> Assignments { get; set; } = [];
+    public bool Partial { get; set; }
+    public string? Message { get; set; }
+    public List<PlanningConflict> Conflicts { get; set; } = [];
+    public int QualityScore { get; set; }
 }
 
 public sealed class PlanningOverviewRow

@@ -336,13 +336,22 @@ export class MonCompteComponent implements OnInit {
 
     openRequestModal(entry: PlanningDayEntry): void {
         this.selectedPlanningEntry = entry;
+        const hsSuggestedStart = this.getHsSuggestedStartTime(entry);
         this.requestForm = {
             type: 'HS',
-            heureDebut: entry.heureDebut || '08:00',
+            heureDebut: hsSuggestedStart,
             heureFin: entry.heureFin || '10:00',
             commentaire: ''
         };
         this.requestModalVisible = true;
+    }
+
+    onRequestTypeChange(): void {
+        if (this.requestForm.type !== 'HS' || !this.selectedPlanningEntry) {
+            return;
+        }
+
+        this.requestForm.heureDebut = this.getHsSuggestedStartTime(this.selectedPlanningEntry);
     }
 
     closeRequestModal(): void {
@@ -365,9 +374,16 @@ export class MonCompteComponent implements OnInit {
         }
 
         this.requestSubmitting = true;
+        const hsSuggestedStart = this.requestForm.type === 'HS' && selected
+            ? this.getHsSuggestedStartTime(selected)
+            : null;
+        if (hsSuggestedStart) {
+            this.requestForm.heureDebut = hsSuggestedStart;
+        }
+
         const startHour = this.requestForm.type === 'ARRET'
             ? '00:00'
-            : this.requestForm.heureDebut;
+            : (hsSuggestedStart || this.requestForm.heureDebut);
         const endHour = this.requestForm.type === 'ARRET'
             ? '23:59'
             : this.requestForm.heureFin;
@@ -476,6 +492,20 @@ export class MonCompteComponent implements OnInit {
                 this.showError('Impossible de charger les informations du compte.');
             }
         });
+    }
+
+    private getHsSuggestedStartTime(entry: PlanningDayEntry): string {
+        const end = `${entry?.heureFin ?? ''}`.trim();
+        if (/^\d{2}:\d{2}$/.test(end)) {
+            return end;
+        }
+
+        const fallbackStart = `${entry?.heureDebut ?? ''}`.trim();
+        if (/^\d{2}:\d{2}$/.test(fallbackStart)) {
+            return fallbackStart;
+        }
+
+        return '08:00';
     }
 
     private loadAbsences(userId: number): void {

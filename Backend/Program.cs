@@ -32,7 +32,15 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontDev", policy =>
     {
         policy
-            .WithOrigins("http://localhost:4200", "https://localhost:4200")
+            .SetIsOriginAllowed(origin =>
+            {
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                {
+                    return false;
+                }
+
+                return uri.IsLoopback;
+            })
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -48,6 +56,7 @@ builder.Services.AddSingleton<CompetenceStore>();
 builder.Services.AddSingleton<MetierStore>();
 builder.Services.AddScoped<WorkflowStore>();
 builder.Services.Configure<ChatbotOptions>(builder.Configuration.GetSection("Chatbot"));
+builder.Services.Configure<AIPlanningOptions>(builder.Configuration.GetSection("AIPlanning"));
 builder.Services.AddSingleton<ChatService>();
 
 builder.Services.AddDbContext<WorkflowDbContext>(options =>
@@ -60,8 +69,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
 app.UseCors("FrontDev");
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -116,7 +130,15 @@ using (var scope = app.Services.CreateScope())
     {
         try
         {
-            await init();
+            var initTask = init();
+            var completedTask = await Task.WhenAny(initTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            if (completedTask != initTask)
+            {
+                logger.LogWarning("{StoreName} initialization timed out and was skipped.", storeName);
+                return;
+            }
+
+            await initTask;
             logger.LogInformation("{StoreName} initialized", storeName);
         }
         catch (Exception ex)
@@ -400,6 +422,35 @@ app.MapGet("/api/planning", async (
     }
 
     return Results.Ok(planning);
+});
+
+app.MapPost("/api/planning/generate", async (GeneratePlanningRequest request, PlanningStore store, StructureStore structureStore) =>
+{
+    request.Constraints ??= new GeneratePlanningConstraints();
+
+    if (request.ServiceId <= 0)
+    {
+        return Results.BadRequest(new { message = "Service invalide. Generation annulee." });
+    }
+
+    var missingRules = request.Constraints.GetUnacceptedMandatoryRules();
+    if (missingRules.Count > 0)
+    {
+        return Results.BadRequest(new
+        {
+            message = "Vous devez accepter toutes les contraintes obligatoires avant de lancer le remplissage IA.",
+            missingRules
+        });
+    }
+
+    var serviceId = request.ServiceId.ToString();
+    if (!await IsExistingServiceIdAsync(serviceId, structureStore))
+    {
+        return Results.BadRequest(new { message = "Service invalide. Generation annulee." });
+    }
+
+    var generated = await store.GeneratePlanningAsync(request);
+    return Results.Ok(generated);
 });
 
 app.MapPost("/api/planning/assignments", async (SaveAssignmentRequest request, PlanningStore store, StructureStore structureStore) =>
@@ -920,6 +971,23 @@ app.MapPut("/api/demandes/{id:int}/rejeter", async (int id, DemandeActionApiDto 
 
         var rejected = await planningStore.RejectUserPlanningRequestAsync(id, actingUserId, payload.Action?.Motif);
         return rejected is null ? Results.NotFound() : Results.Ok(rejected);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+});
+
+app.MapPut("/api/demandes/{id:int}/annuler", async (int id, DemandeApiAccessDto payload, HttpContext httpContext, PlanningStore planningStore) =>
+{
+    try
+    {
+        var actingUserId = ResolveActingUserId(httpContext, payload.ActingUserId);
+        if (actingUserId <= 0)
+            return Results.BadRequest(new { message = "Utilisateur connecté introuvable." });
+
+        var cancelled = await planningStore.CancelUserPlanningRequestAsync(id, actingUserId, "Utilisateur");
+        return cancelled is null ? Results.NotFound() : Results.Ok(cancelled);
     }
     catch (Exception ex)
     {

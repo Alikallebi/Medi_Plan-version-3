@@ -75,6 +75,15 @@
                 <button type="button" class="btn-ghost" [disabled]="selectedCellsCount === 0" (click)="clearSelection()" title="Vider sélection">
                     <i class="pi pi-times-circle"></i>
                 </button>
+                <button
+                    type="button"
+                    class="btn-ai-optimize"
+                    [disabled]="loading || iaOptimizing"
+                    [title]="iaOptimizing ? 'Optimisation en cours...' : 'Pré-remplir automatiquement le planning avec le solveur IA'"
+                    (click)="optimiserAvecIA()">
+                    <i class="pi" [ngClass]="iaOptimizing ? 'pi-spin pi-spinner' : 'pi-magic'"></i>
+                    {{ iaOptimizing ? 'Optimisation...' : 'Optimiser avec IA' }}
+                </button>
                 <button type="button" class="btn-ghost" (click)="saveDraft()" title="Sauvegarder brouillon">
                     <i class="pi pi-save"></i>
                 </button>
@@ -148,7 +157,7 @@
                 <button
                     type="button"
                     class="btn-primary"
-                    [disabled]="!canSubmitCurrentWorkflow"
+                    [disabled]="!canSubmitCurrentWorkflow || iaOptimizing"
                     (click)="submitForValidation()">
                     <i class="pi pi-send"></i> Soumettre
                 </button>
@@ -275,6 +284,47 @@
         (click)="$event.stopPropagation()">
         <button type="button" (click)="editContextAssignment()">Modifier</button>
         <button type="button" (click)="clearContextAssignment()">Effacer</button>
+    </div>
+
+    <div class="modal-backdrop ai-constraints-backdrop" *ngIf="aiConstraintsDialogOpen" (click)="cancelAiMandatoryConstraints()">
+        <div class="modal-card ai-constraints-card" (click)="$event.stopPropagation()">
+            <div class="ai-constraints-card__hero">
+                <div class="ai-constraints-card__badge">
+                    <i class="pi pi-shield"></i>
+                    Sécurité IA
+                </div>
+                <h3>Avant le remplissage automatique</h3>
+                <p>
+                    Pour lancer l’optimisation, ces contraintes doivent être acceptées. Elles protègent la couverture,
+                    les repos, les compétences et les affectations verrouillées.
+                </p>
+            </div>
+
+            <div class="ai-constraints-grid">
+                <article class="ai-rule-card" *ngFor="let rule of aiMandatoryRules">
+                    <span class="ai-rule-card__icon">
+                        <i [class]="rule.icon"></i>
+                    </span>
+                    <div class="ai-rule-card__content">
+                        <strong>{{ rule.title }}</strong>
+                        <span>{{ rule.description }}</span>
+                    </div>
+                </article>
+            </div>
+
+            <div class="ai-constraints-note">
+                <i class="pi pi-info-circle"></i>
+                Vous pourrez relancer l’IA ensuite, mais aucune règle obligatoire ne sera contournée.
+            </div>
+
+            <div class="modal-actions ai-constraints-actions">
+                <button type="button" class="reset-btn" (click)="cancelAiMandatoryConstraints()">Annuler</button>
+                <button type="button" class="action-btn ai-constraints-accept" (click)="acceptAiMandatoryConstraints()">
+                    <i class="pi pi-magic"></i>
+                    J’accepte et je lance l’IA
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="modal-backdrop" *ngIf="assignmentDialogOpen" (click)="closeAssignmentDialog()">

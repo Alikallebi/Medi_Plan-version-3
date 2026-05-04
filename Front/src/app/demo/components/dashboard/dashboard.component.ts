@@ -138,6 +138,14 @@ interface DayShiftGroups {
     special: CalendarAssignmentItem[];
 }
 
+interface DayDetailSection {
+    key: 'planning' | 'hs';
+    badge: string;
+    title: string;
+    emptyLabel: string;
+    items: CalendarAssignmentItem[];
+}
+
 @Component({
     selector: 'app-dashboard',
     templateUrl: './dashboard.component.html',
@@ -1841,6 +1849,68 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     getShiftsOfType(day: CalendarMonthCell, type: ShiftPlacement): CalendarAssignmentItem[] {
         return this.getShiftsForDay(day)[type];
+    }
+
+    isHsItem(item: CalendarAssignmentItem): boolean {
+        return ['garde', 'astreinte', 'conges', 'formation', 'repos'].includes(item.status);
+    }
+
+    getWeekViewItemTitle(item: CalendarAssignmentItem): string {
+        const personnel = item.personnel?.trim() || '';
+        if (!personnel) {
+            return item.label;
+        }
+
+        if (this.isHsItem(item)) {
+            return `${personnel} (${this.getStatusLabel(item.status)})`;
+        }
+
+        return personnel;
+    }
+
+    getSelectedDaySections(): DayDetailSection[] {
+        if (!this.selectedDayDetail) {
+            return [];
+        }
+
+        const planningItems = this.selectedDayDetail.items.filter(item => !this.isHsItem(item));
+        const hsItems = this.selectedDayDetail.items.filter(item => this.isHsItem(item));
+
+        return [
+            {
+                key: 'planning',
+                badge: 'Planning',
+                title: 'Affectations planning',
+                emptyLabel: 'Aucune affectation planning pour ce jour.',
+                items: planningItems
+            },
+            {
+                key: 'hs',
+                badge: 'HS',
+                title: 'Affectations HS',
+                emptyLabel: 'Aucune affectation HS pour ce jour.',
+                items: hsItems
+            }
+        ];
+    }
+
+    getDayDetailBadgeClass(section: DayDetailSection): string {
+        return section.key === 'hs'
+            ? 'detail-section__badge detail-section__badge--hs'
+            : 'detail-section__badge detail-section__badge--planning';
+    }
+
+    getDayDetailCardTitle(item: CalendarAssignmentItem): string {
+        const personnel = item.personnel?.trim();
+        if (!personnel) {
+            return item.label;
+        }
+
+        if (this.isHsItem(item)) {
+            return `${this.getStatusLabel(item.status)} - ${personnel}`;
+        }
+
+        return personnel;
     }
 
     private isDateWithinLoadedPlanningWeek(date: Date): boolean {

@@ -163,28 +163,53 @@ ORDER BY d.created_at ASC;";
 
         var startDate = dto.Date.Date;
         var endDate = (dto.DateFin ?? dto.Date).Date;
+        var today = DateTime.Now.Date;
         var isInformationalType = normalizedType == "AT";
         var isRangeType = normalizedType is "VA" or "AS" or "AL" or "JR" or "ABSENCE";
+
+        if (startDate < today || endDate < today)
+        {
+            throw new InvalidOperationException("Les demandes pour des jours deja passes ne sont pas autorisees.");
+        }
 
         if (isRangeType && endDate < startDate)
         {
             throw new InvalidOperationException("La date de fin doit être postérieure ou égale à la date de début.");
         }
 
-        if (normalizedType == "AT" && startDate != DateTime.Today)
+        if (normalizedType == "AT" && startDate != DateTime.Now.Date)
         {
             throw new InvalidOperationException("L'arrêt de travail ne peut être demandé que pour la date du jour.");
         }
 
-        var (start, end, durationMinutes) = normalizedType == "HS"
+        var usesExplicitTimeRange = UsesExplicitTimeRange(normalizedType, startDate, endDate, dto.HeureDebut, dto.HeureFin);
+        var (start, end, durationMinutes) = usesExplicitTimeRange
             ? ValidateAndComputeDuration(dto.HeureDebut, dto.HeureFin)
             : isInformationalType
                 ? ("00:00", "00:00", 0)
                 : ("00:00", "00:00", Math.Max(1, (endDate - startDate).Days + 1) * 8 * 60);
         var now = DateTime.UtcNow;
+        var localNow = DateTime.Now;
 
         await using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
+
+        string? resolvedSourceAssignmentId = dto.SourceAssignmentId;
+        if (!isInformationalType)
+        {
+            var validation = await ValidateRequestCreationAsync(
+                connection,
+                dto.UserId,
+                normalizedType,
+                startDate,
+                endDate,
+                start,
+                end,
+                usesExplicitTimeRange,
+                localNow,
+                sourceAssignmentId: resolvedSourceAssignmentId);
+            resolvedSourceAssignmentId = validation.SourceAssignmentId ?? resolvedSourceAssignmentId;
+        }
 
         int? validatorId = isInformationalType
             ? null
@@ -219,7 +244,7 @@ VALUES
             cmd.Parameters.AddWithValue("@validePar", (object?)validatorId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@createdAt", now);
             cmd.Parameters.AddWithValue("@updatedAt", now);
-            cmd.Parameters.AddWithValue("@sourceAssignmentId", (object?)dto.SourceAssignmentId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sourceAssignmentId", (object?)resolvedSourceAssignmentId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -374,6 +399,31 @@ ORDER BY created_at ASC, id ASC;";
 
         await EnsureUserCounterRowAsync(connection, request.UserId, tx);
 
+        var localNow = DateTime.Now;
+        var normalizedType = NormalizeRequestType(request.Type);
+        var approvalValidation = await ValidateRequestCreationAsync(
+            connection,
+            request.UserId,
+            normalizedType,
+            request.Date.Date,
+            (request.DateFin ?? request.Date).Date,
+            request.HeureDebut,
+            request.HeureFin,
+            UsesExplicitTimeRange(
+                normalizedType,
+                request.Date.Date,
+                (request.DateFin ?? request.Date).Date,
+                request.HeureDebut,
+                request.HeureFin),
+            localNow,
+            excludeRequestId: request.Id,
+            sourceAssignmentId: request.SourceAssignmentId);
+        if (string.IsNullOrWhiteSpace(request.SourceAssignmentId) &&
+            !string.IsNullOrWhiteSpace(approvalValidation.SourceAssignmentId))
+        {
+            request.SourceAssignmentId = approvalValidation.SourceAssignmentId;
+        }
+
         var serviceName = await ResolveServiceNameByIdAsync(connection, request.ServiceId, tx) ?? $"Service {request.ServiceId}";
         var now = DateTime.UtcNow;
 
@@ -463,6 +513,80 @@ WHERE id = @id;";
             motif,
             tx: null);
 
+        return await GetRequestByIdAsync(connection, requestId);
+    }
+
+    public async Task<UserPlanningRequestItem?> CancelUserPlanningRequestAsync(int requestId, int actingUserId, string? actorName = null)
+    {
+        await using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var tx = await connection.BeginTransactionAsync();
+
+        var request = await GetRequestByIdAsync(connection, requestId, tx);
+        if (request is null)
+        {
+            return null;
+        }
+
+        if (request.UserId != actingUserId)
+        {
+            throw new InvalidOperationException("Seul le créateur de la demande peut l'annuler.");
+        }
+
+        var status = (request.Statut ?? string.Empty).Trim().ToUpperInvariant();
+        if (status == "ANNULEE")
+        {
+            return request;
+        }
+
+        if (status != "EN_ATTENTE" && status != "APPROUVEE" && status != "INFORMATIF")
+        {
+            throw new InvalidOperationException("Cette demande ne peut plus être annulée.");
+        }
+
+        var today = DateTime.Today;
+        var requestEndDate = (request.DateFin ?? request.Date).Date;
+        if (requestEndDate < today)
+        {
+            throw new InvalidOperationException("Seules les demandes du jour ou à venir peuvent être annulées.");
+        }
+
+        if (status == "APPROUVEE")
+        {
+            // Revert the side effects of approval so the cancellation is consistent.
+            await RollbackApprovedRequestImpactAsync(connection, tx, request);
+        }
+
+        const string updateSql = @"
+UPDATE demandes_utilisateur
+SET statut = 'ANNULEE',
+    traite_par = @traitePar,
+    traite_le = @traiteLe,
+    updated_at = @updatedAt,
+    motif_rejet = @motif
+WHERE id = @id;";
+
+        var now = DateTime.UtcNow;
+        await using (var cmd = new MySqlCommand(updateSql, connection, tx))
+        {
+            cmd.Parameters.AddWithValue("@id", requestId);
+            cmd.Parameters.AddWithValue("@traitePar", actingUserId);
+            cmd.Parameters.AddWithValue("@traiteLe", now);
+            cmd.Parameters.AddWithValue("@updatedAt", now);
+            cmd.Parameters.AddWithValue("@motif", "Demande annulée par le créateur.");
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await AddDemandeHistoryAsync(
+            connection,
+            requestId,
+            "CANCELLED",
+            actingUserId,
+            string.IsNullOrWhiteSpace(actorName) ? "Utilisateur" : actorName,
+            "Demande annulée par le créateur",
+            tx);
+
+        await tx.CommitAsync();
         return await GetRequestByIdAsync(connection, requestId);
     }
 
@@ -557,6 +681,420 @@ LIMIT 1;";
         return (startTs.ToString(@"hh\:mm"), endTs.ToString(@"hh\:mm"), minutes);
     }
 
+    private sealed class RequestValidationResult
+    {
+        public string? SourceAssignmentId { get; init; }
+    }
+
+    private sealed class PlanningSlot
+    {
+        public string AssignmentId { get; init; } = string.Empty;
+        public string Start { get; init; } = string.Empty;
+        public string End { get; init; } = string.Empty;
+    }
+
+    private sealed class ExistingRequestConflict
+    {
+        public int Id { get; init; }
+        public string Type { get; init; } = string.Empty;
+        public DateTime Date { get; init; }
+        public DateTime EndDate { get; init; }
+        public string Start { get; init; } = string.Empty;
+        public string End { get; init; } = string.Empty;
+    }
+
+    private static bool UsesExplicitTimeRange(string normalizedType, DateTime startDate, DateTime endDate, string? start, string? end)
+    {
+        if (normalizedType is "HS" or "AS" or "RC+" or "RC-")
+        {
+            return true;
+        }
+
+        if (normalizedType is "ABSENCE" or "AL")
+        {
+            return startDate == endDate && HasMeaningfulTimeRange(start, end);
+        }
+
+        return false;
+    }
+
+    private static bool HasMeaningfulTimeRange(string? start, string? end)
+    {
+        var normalizedStart = NormalizeTimeText(start);
+        var normalizedEnd = NormalizeTimeText(end);
+        return normalizedStart != "00:00" || normalizedEnd != "00:00";
+    }
+
+    private async Task<RequestValidationResult> ValidateRequestCreationAsync(
+        MySqlConnection connection,
+        int userId,
+        string normalizedType,
+        DateTime startDate,
+        DateTime endDate,
+        string start,
+        string end,
+        bool usesExplicitTimeRange,
+        DateTime localNow,
+        int? excludeRequestId = null,
+        string? sourceAssignmentId = null)
+    {
+        if (usesExplicitTimeRange && startDate != endDate)
+        {
+            throw new InvalidOperationException("Les demandes horaires doivent etre saisies sur une seule journee.");
+        }
+
+        var existingRequests = await GetActiveRequestConflictsAsync(connection, userId, startDate, endDate, excludeRequestId);
+
+        if (!usesExplicitTimeRange)
+        {
+            await EnsurePlanningExistsOnRangeAsync(connection, userId, startDate, endDate, normalizedType);
+            ValidateAgainstExistingRequests(existingRequests, startDate, start, end, usesExplicitTimeRange);
+            return new RequestValidationResult
+            {
+                SourceAssignmentId = sourceAssignmentId
+            };
+        }
+
+        var requestStart = ParseTimeOrThrow(start, "Heure de debut invalide.");
+        var requestEnd = ParseTimeOrThrow(end, "Heure de fin invalide.");
+        var nowTime = new TimeSpan(localNow.Hour, localNow.Minute, 0);
+
+        if (startDate == localNow.Date)
+        {
+            if (requestStart < nowTime)
+            {
+                throw new InvalidOperationException("L'heure de debut doit etre posterieure a l'heure actuelle.");
+            }
+
+            if (requestEnd <= nowTime)
+            {
+                throw new InvalidOperationException("L'heure de fin doit etre posterieure a l'heure actuelle.");
+            }
+        }
+
+        var planningSlots = await GetPlanningSlotsForDateAsync(connection, userId, startDate);
+        if (planningSlots.Count == 0)
+        {
+            if (normalizedType != "AS")
+            {
+                throw new InvalidOperationException(
+                    "Sur un jour sans planning, seule une demande d'astreinte est autorisee.");
+            }
+        }
+
+        if (normalizedType == "HS")
+        {
+            ValidateHsAgainstPlanning(planningSlots, requestStart, requestEnd);
+        }
+        else if (normalizedType == "AS")
+        {
+            EnsureNoPlanningOverlap(planningSlots, requestStart, requestEnd, "Le creneau demande chevauche deja votre planning.");
+        }
+        else if (normalizedType is "RC+" or "RC-" or "ABSENCE" or "AL")
+        {
+            var matchingSlot = FindExactPlanningSlot(planningSlots, requestStart, requestEnd, sourceAssignmentId);
+            if (matchingSlot is null)
+            {
+                throw new InvalidOperationException(
+                    "Cette demande doit correspondre exactement a un creneau planifie existant.");
+            }
+
+            sourceAssignmentId = matchingSlot.AssignmentId;
+        }
+
+        ValidateAgainstExistingRequests(existingRequests, startDate, start, end, usesExplicitTimeRange);
+        return new RequestValidationResult
+        {
+            SourceAssignmentId = sourceAssignmentId
+        };
+    }
+
+    private async Task EnsurePlanningExistsOnRangeAsync(
+        MySqlConnection connection,
+        int userId,
+        DateTime startDate,
+        DateTime endDate,
+        string normalizedType)
+    {
+        for (var currentDate = startDate.Date; currentDate <= endDate.Date; currentDate = currentDate.AddDays(1))
+        {
+            var planningSlots = await GetPlanningSlotsForDateAsync(connection, userId, currentDate);
+            if (planningSlots.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    normalizedType == "AS"
+                        ? $"L'astreinte doit etre saisie avec des horaires explicites le {currentDate:dd/MM/yyyy}."
+                        : $"Le {currentDate:dd/MM/yyyy}, vous n'avez pas de planning: seule une demande d'astreinte est autorisee.");
+            }
+        }
+    }
+
+    private static TimeSpan ParseTimeOrThrow(string value, string message)
+    {
+        if (!TimeSpan.TryParse(value, out var result))
+        {
+            throw new InvalidOperationException(message);
+        }
+
+        return result;
+    }
+
+    private static string NormalizeTimeText(string? value)
+    {
+        if (TimeSpan.TryParse(value, out var parsed))
+        {
+            return parsed.ToString(@"hh\:mm");
+        }
+
+        return "00:00";
+    }
+
+    private static void ValidateHsAgainstPlanning(IReadOnlyList<PlanningSlot> planningSlots, TimeSpan requestStart, TimeSpan requestEnd)
+    {
+        if (planningSlots.Count == 0)
+        {
+            return;
+        }
+
+        var latestPlanningEnd = planningSlots
+            .Select(slot => ParseTimeOrThrow(slot.End, "Heure de fin de planning invalide."))
+            .Max();
+
+        if (requestStart < latestPlanningEnd)
+        {
+            throw new InvalidOperationException(
+                $"La demande HS doit commencer apres la fin de votre planning ({latestPlanningEnd:hh\\:mm}).");
+        }
+
+        EnsureNoPlanningOverlap(
+            planningSlots,
+            requestStart,
+            requestEnd,
+            "Le creneau HS chevauche deja votre planning du jour.");
+    }
+
+    private static void EnsureNoPlanningOverlap(
+        IReadOnlyList<PlanningSlot> planningSlots,
+        TimeSpan requestStart,
+        TimeSpan requestEnd,
+        string errorMessage)
+    {
+        foreach (var slot in planningSlots)
+        {
+            var slotStart = ParseTimeOrThrow(slot.Start, "Heure de debut de planning invalide.");
+            var slotEnd = ParseTimeOrThrow(slot.End, "Heure de fin de planning invalide.");
+            if (TimeRangesOverlap(requestStart, requestEnd, slotStart, slotEnd))
+            {
+                throw new InvalidOperationException(errorMessage);
+            }
+        }
+    }
+
+    private static PlanningSlot? FindExactPlanningSlot(
+        IReadOnlyList<PlanningSlot> planningSlots,
+        TimeSpan requestStart,
+        TimeSpan requestEnd,
+        string? preferredAssignmentId)
+    {
+        if (!string.IsNullOrWhiteSpace(preferredAssignmentId))
+        {
+            var preferred = planningSlots.FirstOrDefault(slot =>
+                string.Equals(slot.AssignmentId, preferredAssignmentId, StringComparison.OrdinalIgnoreCase));
+            if (preferred is not null)
+            {
+                return preferred;
+            }
+        }
+
+        return planningSlots.FirstOrDefault(slot =>
+            ParseTimeOrThrow(slot.Start, "Heure de debut de planning invalide.") == requestStart &&
+            ParseTimeOrThrow(slot.End, "Heure de fin de planning invalide.") == requestEnd);
+    }
+
+    private static void ValidateAgainstExistingRequests(
+        IReadOnlyList<ExistingRequestConflict> existingRequests,
+        DateTime requestedDate,
+        string start,
+        string end,
+        bool usesExplicitTimeRange)
+    {
+        if (existingRequests.Count == 0)
+        {
+            return;
+        }
+
+        if (!usesExplicitTimeRange)
+        {
+            throw new InvalidOperationException("Une autre demande active existe deja sur cette periode.");
+        }
+
+        var requestStart = ParseTimeOrThrow(start, "Heure de debut invalide.");
+        var requestEnd = ParseTimeOrThrow(end, "Heure de fin invalide.");
+
+        foreach (var existing in existingRequests)
+        {
+            if (existing.Date.Date != requestedDate.Date)
+            {
+                throw new InvalidOperationException("Une autre demande active existe deja sur cette periode.");
+            }
+
+            var existingUsesTimeRange = HasMeaningfulTimeRange(existing.Start, existing.End);
+            if (!existingUsesTimeRange)
+            {
+                throw new InvalidOperationException("Une autre demande active couvre deja cette journee.");
+            }
+
+            var existingStart = ParseTimeOrThrow(existing.Start, "Heure de debut de demande invalide.");
+            var existingEnd = ParseTimeOrThrow(existing.End, "Heure de fin de demande invalide.");
+            if (TimeRangesOverlap(requestStart, requestEnd, existingStart, existingEnd))
+            {
+                throw new InvalidOperationException(
+                    $"Le creneau demande chevauche deja une demande active ({NormalizeRequestType(existing.Type)}).");
+            }
+        }
+    }
+
+    private static bool TimeRangesOverlap(TimeSpan leftStart, TimeSpan leftEnd, TimeSpan rightStart, TimeSpan rightEnd)
+    {
+        return leftStart < rightEnd && leftEnd > rightStart;
+    }
+
+    private async Task<IReadOnlyList<PlanningSlot>> GetPlanningSlotsForDateAsync(MySqlConnection connection, int userId, DateTime date)
+    {
+        var identities = await ResolvePersonnelIdentifiersAsync(connection, userId);
+        if (identities.Count == 0)
+        {
+            return Array.Empty<PlanningSlot>();
+        }
+
+        var conditions = new List<string>();
+        await using var cmd = new MySqlCommand(string.Empty, connection);
+        for (var i = 0; i < identities.Count; i++)
+        {
+            var key = $"@identity{i}";
+            conditions.Add($"LOWER(REPLACE(TRIM(a.personnel_id), ' ', '')) = {key}");
+            cmd.Parameters.AddWithValue(key, identities[i]);
+        }
+
+        cmd.CommandText = $@"
+SELECT a.assignment_id, a.start_time, a.end_time
+FROM planning_assignments a
+INNER JOIN planning_weeks w ON w.id = a.planning_week_id
+WHERE DATE_ADD(w.week_start, INTERVAL a.day_index DAY) = @targetDate
+  AND ({string.Join(" OR ", conditions)})
+ORDER BY a.start_time ASC, a.end_time ASC;";
+        cmd.Parameters.AddWithValue("@targetDate", date.Date);
+
+        var result = new List<PlanningSlot>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var slotStart = NormalizeTimeText(reader["start_time"]?.ToString());
+            var slotEnd = NormalizeTimeText(reader["end_time"]?.ToString());
+            if (slotStart == "00:00" && slotEnd == "00:00")
+            {
+                continue;
+            }
+
+            result.Add(new PlanningSlot
+            {
+                AssignmentId = reader["assignment_id"]?.ToString() ?? string.Empty,
+                Start = slotStart,
+                End = slotEnd
+            });
+        }
+
+        return result;
+    }
+
+    private async Task<List<string>> ResolvePersonnelIdentifiersAsync(MySqlConnection connection, int userId)
+    {
+        const string sql = @"
+SELECT id, email, matricule, nom, prenom
+FROM staff_users
+WHERE id = @id
+LIMIT 1;";
+
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@id", userId);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return new List<string> { userId.ToString() };
+        }
+
+        var identifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            userId.ToString().Trim().ToLowerInvariant()
+        };
+
+        void Add(string? raw)
+        {
+            var normalized = raw?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                identifiers.Add(normalized.Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant());
+            }
+        }
+
+        Add(reader["email"]?.ToString());
+        Add(reader["matricule"]?.ToString());
+
+        var nom = reader["nom"]?.ToString()?.Trim();
+        var prenom = reader["prenom"]?.ToString()?.Trim();
+        if (!string.IsNullOrWhiteSpace(prenom) && !string.IsNullOrWhiteSpace(nom))
+        {
+            Add($"{prenom} {nom}");
+            Add($"{nom} {prenom}");
+        }
+
+        return identifiers.ToList();
+    }
+
+    private async Task<IReadOnlyList<ExistingRequestConflict>> GetActiveRequestConflictsAsync(
+        MySqlConnection connection,
+        int userId,
+        DateTime startDate,
+        DateTime endDate,
+        int? excludeRequestId)
+    {
+        const string sql = @"
+SELECT id, type_demande, date_evenement, date_fin_evenement, heure_debut, heure_fin
+FROM demandes_utilisateur
+WHERE user_id = @userId
+  AND statut IN ('EN_ATTENTE', 'APPROUVEE', 'INFORMATIF')
+  AND (@excludeRequestId IS NULL OR id <> @excludeRequestId)
+  AND date_evenement <= @endDate
+  AND COALESCE(date_fin_evenement, date_evenement) >= @startDate
+ORDER BY date_evenement ASC, created_at ASC;";
+
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@excludeRequestId", excludeRequestId.HasValue ? excludeRequestId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@startDate", startDate.Date);
+        cmd.Parameters.AddWithValue("@endDate", endDate.Date);
+
+        var result = new List<ExistingRequestConflict>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var currentStartDate = Convert.ToDateTime(reader["date_evenement"]).Date;
+            result.Add(new ExistingRequestConflict
+            {
+                Id = Convert.ToInt32(reader["id"]),
+                Type = reader["type_demande"]?.ToString() ?? string.Empty,
+                Date = currentStartDate,
+                EndDate = reader["date_fin_evenement"] is DBNull
+                    ? currentStartDate
+                    : Convert.ToDateTime(reader["date_fin_evenement"]).Date,
+                Start = NormalizeTimeText(reader["heure_debut"]?.ToString()),
+                End = NormalizeTimeText(reader["heure_fin"]?.ToString())
+            });
+        }
+
+        return result;
+    }
+
     private static DateTime ToMonday(DateTime date)
     {
         var day = date.Date;
@@ -646,7 +1184,8 @@ WHERE planning_week_id = @weekId
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.SourceAssignmentId) && (normalizedType == "RC-" || normalizedType == "ABSENCE" || normalizedType == "AL"))
+        if (!string.IsNullOrWhiteSpace(request.SourceAssignmentId) &&
+            (normalizedType == "RC+" || normalizedType == "RC-" || normalizedType == "ABSENCE" || normalizedType == "AL"))
         {
             const string deleteSourceSql = @"
 DELETE FROM planning_assignments
@@ -656,6 +1195,22 @@ WHERE planning_week_id = @weekId
             deleteSourceCmd.Parameters.AddWithValue("@weekId", weekId);
             deleteSourceCmd.Parameters.AddWithValue("@assignmentId", request.SourceAssignmentId);
             await deleteSourceCmd.ExecuteNonQueryAsync();
+        }
+
+        if (request.HeureDebut == "00:00" && request.HeureFin == "00:00" &&
+            (normalizedType == "VA" || normalizedType == "JR" || normalizedType == "ABSENCE" ||
+             normalizedType == "AL" || normalizedType == "RC+" || normalizedType == "RC-"))
+        {
+            const string deleteDayAssignmentsSql = @"
+DELETE FROM planning_assignments
+WHERE planning_week_id = @weekId
+  AND personnel_id = @personnelId
+  AND day_index = @dayIndex;";
+            await using var deleteDayCmd = new MySqlCommand(deleteDayAssignmentsSql, connection, tx);
+            deleteDayCmd.Parameters.AddWithValue("@weekId", weekId);
+            deleteDayCmd.Parameters.AddWithValue("@personnelId", request.UserId.ToString());
+            deleteDayCmd.Parameters.AddWithValue("@dayIndex", dayIndex);
+            await deleteDayCmd.ExecuteNonQueryAsync();
         }
 
         var shiftType = normalizedType switch
@@ -716,6 +1271,83 @@ VALUES
         cmd.Parameters.AddWithValue("@createdAt", now);
         cmd.Parameters.AddWithValue("@updatedAt", now);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task RollbackApprovedRequestImpactAsync(MySqlConnection connection, MySqlTransaction tx, UserPlanningRequestItem request)
+    {
+        await RemoveRequestAssignmentsAsync(connection, tx, request);
+        await RollbackCountersOnCancellationAsync(connection, tx, request);
+    }
+
+    private static async Task RemoveRequestAssignmentsAsync(MySqlConnection connection, MySqlTransaction tx, UserPlanningRequestItem request)
+    {
+        const string sql = @"
+DELETE FROM planning_assignments
+WHERE personnel_id = @personnelId
+  AND assignment_id LIKE @assignmentPrefix;";
+
+        await using var cmd = new MySqlCommand(sql, connection, tx);
+        cmd.Parameters.AddWithValue("@personnelId", request.UserId.ToString());
+        cmd.Parameters.AddWithValue("@assignmentPrefix", $"req-{request.Id}-%");
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task RollbackCountersOnCancellationAsync(MySqlConnection connection, MySqlTransaction tx, UserPlanningRequestItem request)
+    {
+        var normalizedType = NormalizeRequestType(request.Type);
+        var hours = request.DureeHeures;
+
+        const string lockSql = @"
+SELECT solde_rc_plus, solde_rc_moins
+FROM compteurs_utilisateur
+WHERE user_id = @userId
+FOR UPDATE;";
+
+        decimal currentPlus;
+        decimal currentMinus;
+        await using (var lockCmd = new MySqlCommand(lockSql, connection, tx))
+        {
+            lockCmd.Parameters.AddWithValue("@userId", request.UserId);
+            await using var reader = await lockCmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+            {
+                return;
+            }
+
+            currentPlus = reader.GetDecimal("solde_rc_plus");
+            currentMinus = reader.GetDecimal("solde_rc_moins");
+        }
+
+        decimal nextPlus = currentPlus;
+        decimal nextMinus = currentMinus;
+
+        switch (normalizedType)
+        {
+            case "HS":
+                nextPlus = Math.Max(0, currentPlus - hours);
+                break;
+            case "RC+":
+                nextPlus = currentPlus + hours;
+                break;
+            case "RC-":
+            case "ABSENCE":
+                nextMinus = Math.Max(0, currentMinus - hours);
+                break;
+        }
+
+        const string updateSql = @"
+UPDATE compteurs_utilisateur
+SET solde_rc_plus = @soldePlus,
+    solde_rc_moins = @soldeMoins,
+    updated_at = @updatedAt
+WHERE user_id = @userId;";
+
+        await using var updateCmd = new MySqlCommand(updateSql, connection, tx);
+        updateCmd.Parameters.AddWithValue("@soldePlus", nextPlus);
+        updateCmd.Parameters.AddWithValue("@soldeMoins", nextMinus);
+        updateCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow);
+        updateCmd.Parameters.AddWithValue("@userId", request.UserId);
+        await updateCmd.ExecuteNonQueryAsync();
     }
 
     private static async Task ApplyCountersOnApprovalAsync(MySqlConnection connection, MySqlTransaction tx, UserPlanningRequestItem request)

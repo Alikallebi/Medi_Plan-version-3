@@ -323,7 +323,10 @@
                                         <li class="week-view-staff" *ngFor="let item of shifts.morning" [title]="item.tooltip">
                                             <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
                                             <span class="week-view-staff__meta">
-                                                <span class="week-view-staff__name">{{ getStatusLabel(item.status) }} - {{ item.personnel }}</span>
+                                                <span class="week-view-staff__name">
+                                                    <span class="week-view-staff__badge" *ngIf="isHsItem(item)">HS</span>
+                                                    {{ getWeekViewItemTitle(item) }}
+                                                </span>
                                                 <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
                                             </span>
                                             <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
@@ -341,7 +344,10 @@
                                         <li class="week-view-staff" *ngFor="let item of shifts.afternoon" [title]="item.tooltip">
                                             <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
                                             <span class="week-view-staff__meta">
-                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__name">
+                                                    <span class="week-view-staff__badge" *ngIf="isHsItem(item)">HS</span>
+                                                    {{ getWeekViewItemTitle(item) }}
+                                                </span>
                                                 <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
                                             </span>
                                             <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
@@ -359,7 +365,10 @@
                                         <li class="week-view-staff" *ngFor="let item of shifts.night" [title]="item.tooltip">
                                             <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
                                             <span class="week-view-staff__meta">
-                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__name">
+                                                    <span class="week-view-staff__badge" *ngIf="isHsItem(item)">HS</span>
+                                                    {{ getWeekViewItemTitle(item) }}
+                                                </span>
                                                 <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
                                             </span>
                                             <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
@@ -377,7 +386,10 @@
                                         <li class="week-view-staff" *ngFor="let item of shifts.special" [title]="item.tooltip">
                                             <span class="week-view-staff__avatar" aria-hidden="true"><i class="pi pi-user"></i></span>
                                             <span class="week-view-staff__meta">
-                                                <span class="week-view-staff__name">{{ item.personnel }}</span>
+                                                <span class="week-view-staff__name">
+                                                    <span class="week-view-staff__badge" *ngIf="isHsItem(item)">HS</span>
+                                                    {{ getWeekViewItemTitle(item) }}
+                                                </span>
                                                 <span class="week-view-staff__time" *ngIf="item.timeRange">{{ item.timeRange }}</span>
                                             </span>
                                             <span class="week-view-staff__conflict-dot" *ngIf="item.status === 'conflit'" aria-hidden="true"></span>
@@ -420,14 +432,28 @@
                 </button>
             </header>
 
-            <ul>
-                <li *ngFor="let item of selectedDayDetail.items">
-                    <span class="detail-badge" [ngClass]="getStatusClass(item.status)">{{ getStatusLabel(item.status) }}</span>
-                    <strong>{{ item.personnel }}</strong>
-                    <span>{{ item.label }}</span>
-                </li>
-                <li *ngIf="selectedDayDetail.items.length === 0">Aucune affectation planifiée.</li>
-            </ul>
+            <div class="day-detail-sections">
+                <section class="detail-section" *ngFor="let section of getSelectedDaySections()">
+                    <div class="detail-section__header">
+                        <span class="detail-section__badge" [ngClass]="getDayDetailBadgeClass(section)">{{ section.badge }}</span>
+                        <h4>{{ section.title }}</h4>
+                    </div>
+
+                    <ul class="detail-section__list" *ngIf="section.items.length > 0; else emptySection">
+                        <li *ngFor="let item of section.items">
+                            <div class="detail-entry__main">
+                                <strong>{{ getDayDetailCardTitle(item) }}</strong>
+                                <span *ngIf="item.timeRange">{{ item.timeRange }}</span>
+                                <small *ngIf="item.personnel">{{ item.personnel }}</small>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <ng-template #emptySection>
+                        <p class="detail-section__empty">{{ section.emptyLabel }}</p>
+                    </ng-template>
+                </section>
+            </div>
 
             <footer>
                 <button type="button" class="today-btn" (click)="createNewPlanning()" *ngIf="canShowCreatePlanningButton()">Modifier les affectations</button>

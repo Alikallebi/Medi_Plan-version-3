@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { Assignment, Conflict, PlanningData, PlanningEvent, PlanningHistoryEntry, PlanningNotification, Personnel, PlanningStats, PlanningVersion, Rule, ShiftType } from '../api/planning.models';
+import { Assignment, Conflict, PlanningData, PlanningEvent, PlanningGenerateRequest, PlanningGenerateResponse, PlanningHistoryEntry, PlanningNotification, Personnel, PlanningStats, PlanningVersion, Rule, ShiftType } from '../api/planning.models';
 import { ConflictDetectionService } from './conflict-detection.service';
 import { PerimeterService, PerimeterFilter } from './perimeter.service';
 import { environment } from 'src/environments/environment';
@@ -132,6 +132,10 @@ export class PlanningService {
                 this.saveCache();
             })
         );
+    }
+
+    generatePlanning(payload: PlanningGenerateRequest): Observable<PlanningGenerateResponse> {
+        return this.http.post<PlanningGenerateResponse>(`${this.apiUrl}/generate`, payload);
     }
 
     saveAssignment(planningId: string, assignment: Assignment): Observable<Assignment> {

@@ -95,7 +95,14 @@
                 <span class="day-count">{{ day.affectations.length }} act. · {{ day.demandes.length }} dem.</span>
             </header>
 
-            <button type="button" pButton class="p-button-sm p-button-outlined" icon="pi pi-plus" label="Demande" (click)="openDemandeModal(day.date)"></button>
+            <button
+                *ngIf="!isPastDay(day.date)"
+                type="button"
+                pButton
+                class="p-button-sm p-button-outlined"
+                icon="pi pi-plus"
+                label="Demande"
+                (click)="openDemandeModal(day.date)"></button>
 
             <div class="day-block">
                 <div class="block-title">
@@ -192,6 +199,7 @@
         [loading]="createDemandeLoading"
         [defaultDate]="modalDefaultDate"
         [workEndHourByDate]="workEndHourByDate"
+        [planningAvailableByDate]="planningAvailableByDate"
         [typeDefinitions]="demandeTypeDefinitions"
         (close)="closeDemandeModal()"
         (submitDemande)="submitDemande($any($event))">
@@ -214,5 +222,25 @@
             <div class="full"><span>Commentaire</span><strong>{{ detail.commentaire || '-' }}</strong></div>
             <div class="full" *ngIf="detail.motifRejet"><span>Motif rejet</span><strong>{{ detail.motifRejet }}</strong></div>
         </div>
+
+        <footer class="demande-detail-footer">
+            <button
+                *ngIf="canCancelDemande(detail)"
+                type="button"
+                pButton
+                class="p-button-danger p-button-outlined"
+                [label]="cancelDemandeLoading ? 'Annulation...' : 'Annuler la demande'"
+                [disabled]="cancelDemandeLoading"
+                icon="pi pi-times-circle"
+                (click)="cancelSelectedDemande()">
+            </button>
+        </footer>
     </section>
+
+    <p-confirmDialog
+        key="cancel-demande-confirm"
+        [baseZIndex]="1200"
+        [style]="{ width: 'min(460px, calc(100vw - 2rem))' }"
+        styleClass="cancel-demande-confirm-dialog">
+    </p-confirmDialog>
 </section>

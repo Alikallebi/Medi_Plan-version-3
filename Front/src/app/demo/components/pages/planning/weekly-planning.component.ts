@@ -51,11 +51,31 @@ export class WeeklyPlanningComponent {
     }
 
     hasConflict(personnelId: string, day: number): boolean {
-        return this.conflicts.some(conflict => conflict.personnelId === personnelId && conflict.day === day);
+        return this.getConflict(personnelId, day) !== null;
     }
 
     getConflict(personnelId: string, day: number): Conflict | null {
-        return this.conflicts.find(conflict => conflict.personnelId === personnelId && conflict.day === day) || null;
+        const cellAssignmentIds = this.getAssignmentsForCell(personnelId, day)
+            .map(item => item.id)
+            .filter((id): id is string => !!id);
+
+        if (cellAssignmentIds.length > 0) {
+            const exactConflict = this.conflicts.find(conflict =>
+                conflict.personnelId === personnelId
+                && conflict.day === day
+                && Array.isArray(conflict.assignments)
+                && conflict.assignments.some(id => cellAssignmentIds.includes(id))
+            );
+
+            if (exactConflict) {
+                return exactConflict;
+            }
+        }
+
+        return this.conflicts.find(conflict =>
+            conflict.personnelId === personnelId
+            && conflict.day === day
+        ) || null;
     }
 
     getCellKey(personnelId: string, day: number): string {

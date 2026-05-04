@@ -508,6 +508,10 @@
     background: #cf5f5f;
 }
 
+.status-cancelled {
+    background: #8b96a8;
+}
+
 .empty-state {
     padding: 0.9rem 1rem;
     border-radius: 16px;
@@ -679,4 +683,37 @@
     .legend-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.demande-detail-footer {
+    margin-top: 0.95rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #e8eef5;
+    display: flex;
+    justify-content: flex-end;
+}
+
+:host ::ng-deep .cancel-demande-confirm-dialog .p-dialog-header {
+    border-bottom: 1px solid #eef2f7;
+    padding-bottom: 0.8rem;
+}
+
+:host ::ng-deep .cancel-demande-confirm-dialog .p-dialog-title {
+    color: #17324d;
+    font-weight: 700;
+}
+
+:host ::ng-deep .cancel-demande-confirm-dialog .p-confirm-dialog-message {
+    color: #36526b;
+    line-height: 1.45;
+}
+
+:host ::ng-deep .cancel-demande-confirm-dialog .p-confirm-dialog-icon {
+    color: #d97706;
+    font-size: 1.2rem;
+}
+
+:host ::ng-deep .cancel-demande-confirm-dialog .p-dialog-footer {
+    border-top: 1px solid #eef2f7;
+    padding-top: 0.85rem;
 }

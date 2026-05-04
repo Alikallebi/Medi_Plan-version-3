@@ -306,6 +306,16 @@ export class AppTopBarComponent implements OnInit, OnDestroy {
         return mapping[type];
     }
 
+    getNotificationTypeLabel(type: TopbarNotification['type']): string {
+        const mapping: Record<TopbarNotification['type'], string> = {
+            info: 'Info',
+            warning: 'Action',
+            success: 'Validé',
+            urgent: 'Urgent'
+        };
+        return mapping[type];
+    }
+
     getUnreadBadgeLabel(): string {
         if (this.unreadCount <= 0) {
             return '';

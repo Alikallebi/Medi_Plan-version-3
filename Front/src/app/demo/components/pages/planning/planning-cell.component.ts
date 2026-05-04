@@ -34,7 +34,71 @@ interface ResolvedSlotDisplay {
 
 @Component({
     selector: 'app-planning-cell',
-    templateUrl: './planning-cell.component.html',
+    template: `
+<div
+    class="planning-cell"
+    [class.selected-cell]="selected"
+    [class.cell-conflict]="hasConflict"
+    [class.cell-leave]="isVacation"
+    [class.cell-rest]="isRestDay"
+    [title]="cellTitle"
+    appDropZone
+    [dropData]="dropData"
+    [dropValidator]="dropValidator"
+    (dropped)="dropped.emit($event)"
+    (click)="onClickCell()"
+    (contextmenu)="onContextMenu($event)"
+    (mousedown)="onSelectionStart()"
+    (mouseenter)="onSelectionEnter()"
+    (mouseup)="onSelectionEnd()">
+
+    <div class="cell-conflict-tooltip" *ngIf="hasConflict && conflict">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span>{{ getConflictDescription() }}</span>
+    </div>
+
+    <div class="planning-cell-content" *ngIf="showShiftBadges; else fullWidthOrEmpty">
+        <div class="shift-badge-list">
+            <article
+                *ngFor="let item of renderedAssignments"
+                class="shift-badge"
+                [ngClass]="getShiftBadgeClass(item)"
+                [attr.title]="getAssignmentTooltip(item)">
+                <span class="shift-badge-icon" aria-hidden="true">
+                    <i [ngClass]="getShiftIconClass(item)"></i>
+                </span>
+
+                <span class="shift-badge-main" [class.is-weekend-default]="isSyntheticRestAssignment(item)">
+                    <span class="shift-badge-label">{{ getCompactLabel(item) }}</span>
+                    <span class="shift-badge-time" *ngIf="getCompactTimeRange(item)">{{ getCompactTimeRange(item) }}</span>
+                </span>
+            </article>
+        </div>
+    </div>
+
+    <ng-template #fullWidthOrEmpty>
+        <div class="timeline-wrapper" *ngIf="fullWidthEvent; else emptyState">
+            <article
+                class="full-width-event"
+                [ngClass]="'event-' + fullWidthEvent.type.toLowerCase()"
+                [title]="fullWidthTitle">
+                <span class="event-icon" *ngIf="fullWidthEvent.type === 'ARRET'">!</span>
+                <span class="event-label">{{ fullWidthLabel }}</span>
+                <span class="event-reason" *ngIf="fullWidthEvent.reason">{{ fullWidthEvent.reason }}</span>
+                <span class="event-badge at" *ngIf="showAtBadge">AT</span>
+                <span class="event-badge warning" *ngIf="showUnjustifiedWarning">!</span>
+            </article>
+        </div>
+    </ng-template>
+
+    <ng-template #emptyState>
+        <div class="empty-drop-zone">
+            <span class="empty-symbol">—</span>
+        </div>
+    </ng-template>
+
+</div>
+`,
     styleUrls: ['./planning-cell.component.css']
 })
 export class PlanningCellComponent {
@@ -71,6 +135,34 @@ export class PlanningCellComponent {
 
     get hasAssignments(): boolean {
         return this.assignmentList.length > 0;
+    }
+
+    get displayAssignments(): Assignment[] {
+        if (!this.assignmentList.length) {
+            return [];
+        }
+
+        return [...this.assignmentList].sort((left, right) => {
+            const leftStart = left.startTime || '99:99';
+            const rightStart = right.startTime || '99:99';
+            return leftStart.localeCompare(rightStart);
+        });
+    }
+
+    get renderedAssignments(): Assignment[] {
+        if (this.displayAssignments.length > 0) {
+            return this.displayAssignments.slice(0, 3);
+        }
+
+        if (this.showDefaultWeekendRest) {
+            return [this.buildDefaultRestAssignment()];
+        }
+
+        return [];
+    }
+
+    get showShiftBadges(): boolean {
+        return this.renderedAssignments.length > 0 && !(this.fullWidthEvent && this.isPriorityFullWidthEvent(this.fullWidthEvent.type));
     }
 
     get slotDisplay(): ResolvedSlotDisplay {
@@ -244,7 +336,7 @@ export class PlanningCellComponent {
     }
 
     get isRestDay(): boolean {
-        if (this.assignment) {
+        if (this.hasAssignments) {
             return false;
         }
 
@@ -256,9 +348,16 @@ export class PlanningCellComponent {
         return false;
     }
 
+    get showDefaultWeekendRest(): boolean {
+        return this.isRestDay && !this.hasAssignments && !this.fullWidthEvent;
+    }
+
     get cellTitle(): string {
         if (this.conflict?.description) {
             return this.conflict.details ? `${this.conflict.description} (${this.conflict.details})` : this.conflict.description;
+        }
+        if (this.renderedAssignments.length > 0) {
+            return this.renderedAssignments.map(item => this.getAssignmentTooltip(item)).join(' | ');
         }
         if (this.fullWidthEvent) {
             return this.fullWidthTitle;
@@ -314,17 +413,24 @@ export class PlanningCellComponent {
         return normalized.filter(event => event.type === 'AS' || event.type === 'HS');
     }
 
-    getShiftIcon(item: Assignment): string {
+    getShiftIconClass(item: Assignment): string {
         const map: Record<string, string> = {
-            jour:       'pi-sun',
-            nuit:       'pi-moon',
-            garde:      'pi-shield',
-            astreinte:  'pi-bell',
-            repos:      'pi-home',
-            conges:     'pi-umbrella',
-            formation:  'pi-book'
+            jour: 'pi pi-sun',
+            matin: 'pi pi-sun',
+            'apres-midi': 'pi pi-cloud-sun',
+            apresmidi: 'pi pi-cloud-sun',
+            nuit: 'pi pi-moon',
+            garde: 'pi pi-shield',
+            astreinte: 'pi pi-bell',
+            repos: 'pi pi-pause-circle',
+            consultation: 'pi pi-user-edit',
+            bloc: 'pi pi-heart-fill',
+            conges: 'pi pi-calendar',
+            formation: 'pi pi-book',
+            absence: 'pi pi-times-circle'
         };
-        return map[item.shiftType] || 'pi-circle-fill';
+
+        return map[this.getNormalizedShiftKey(item)] || 'pi pi-briefcase';
     }
 
     getAssignmentLabel(item: Assignment): string {
@@ -352,11 +458,74 @@ export class PlanningCellComponent {
     }
 
     getCompactLabel(item: Assignment): string {
-        const label = this.getAssignmentLabel(item);
+        const label = this.getShortAssignmentLabel(item);
         if (label.length === 0) {
             return this.getInitialShiftLetter(item.shiftType);
         }
         return label;
+    }
+
+    getShortAssignmentLabel(item: Assignment): string {
+        const explicitLabel = (item.posteLabel || '').trim();
+        if (explicitLabel) {
+            return explicitLabel;
+        }
+
+        const normalized = this.getNormalizedShiftKey(item);
+        const map: Record<string, string> = {
+            jour: 'Jour',
+            matin: 'Matin',
+            'apres-midi': 'Apres-midi',
+            apresmidi: 'Apres-midi',
+            nuit: 'Nuit',
+            garde: 'Garde',
+            astreinte: 'Astreinte',
+            repos: 'Repos',
+            consultation: 'Consultation',
+            bloc: 'Bloc',
+            conges: 'Conge',
+            formation: 'Formation',
+            absence: 'Absence'
+        };
+
+        return map[normalized] || this.getAssignmentLabel(item);
+    }
+
+    getShiftBadgeClass(item: Assignment): string {
+        return `shift-badge-${this.getNormalizedShiftKey(item)}`;
+    }
+
+    getCompactTimeRange(item: Assignment): string {
+        if (!item.startTime || !item.endTime) {
+            return '';
+        }
+
+        return `${this.compactHour(item.startTime)}-${this.compactHour(item.endTime)}`;
+    }
+
+    getAssignmentTooltip(item: Assignment): string {
+        const details = [
+            this.getShortAssignmentLabel(item),
+            this.getShiftTypeLabel(item)
+        ];
+
+        if (item.startTime && item.endTime) {
+            details.push(`${item.startTime} - ${item.endTime}`);
+        }
+
+        if (item.note?.trim()) {
+            details.push(item.note.trim());
+        }
+
+        if (item.reason?.trim() && item.reason.trim() !== item.note?.trim()) {
+            details.push(item.reason.trim());
+        }
+
+        return details.filter(Boolean).join(' | ');
+    }
+
+    isSyntheticRestAssignment(item: Assignment): boolean {
+        return item.id === '__default_rest__';
     }
 
     getInitialShiftLetter(shiftType: string): string {
@@ -557,6 +726,10 @@ export class PlanningCellComponent {
         return type === 'ARRET' || type === 'ABSENCE' || type === 'VA' || type === 'AL' || type === 'JR';
     }
 
+    private isPriorityFullWidthEvent(type: PlanningEventType): boolean {
+        return type === 'ARRET' || type === 'ABSENCE';
+    }
+
     private isWorkAccidentReason(reason?: string): boolean {
         return String(reason || '').toLowerCase().includes('work_accident')
             || String(reason || '').toLowerCase().includes('accident_travail')
@@ -611,5 +784,98 @@ export class PlanningCellComponent {
         const [hourStr] = time.split(':');
         const hour = Number(hourStr);
         return Number.isFinite(hour) ? hour : null;
+    }
+
+    private compactHour(time: string): string {
+        const [hourStr, minuteStr] = time.split(':');
+        const hour = Number(hourStr);
+        const minute = Number(minuteStr);
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+            return time;
+        }
+
+        if (minute === 0) {
+            return `${String(hour).padStart(2, '0')}h`;
+        }
+
+        return `${String(hour).padStart(2, '0')}h${String(minute).padStart(2, '0')}`;
+    }
+
+    private buildDefaultRestAssignment(): Assignment {
+        return {
+            id: '__default_rest__',
+            personnelId: this.personnel?.id || '',
+            day: this.dayIndex,
+            shiftType: 'repos',
+            posteLabel: 'Repos'
+        };
+    }
+
+    getShiftTypeLabel(item: Assignment): string {
+        const map: Record<string, string> = {
+            jour: 'Poste de jour',
+            matin: 'Poste du matin',
+            'apres-midi': 'Poste de l apres-midi',
+            apresmidi: 'Poste de l apres-midi',
+            nuit: 'Poste de nuit',
+            garde: 'Garde',
+            astreinte: 'Astreinte',
+            repos: 'Repos',
+            consultation: 'Consultation',
+            bloc: 'Bloc operatoire',
+            conges: 'Conge',
+            formation: 'Formation',
+            absence: 'Absence'
+        };
+
+        return map[this.getNormalizedShiftKey(item)] || 'Affectation';
+    }
+
+    private getNormalizedShiftKey(item: Assignment): string {
+        const type = String(item.shiftType || '').toLowerCase().trim();
+        const label = `${item.posteLabel || ''} ${item.note || ''}`.toLowerCase();
+
+        if (type) {
+            if (type === 'jour' && label.includes('matin')) {
+                return 'matin';
+            }
+            if ((type === 'jour' || type === 'apres-midi') && (label.includes('apres') || label.includes('soir'))) {
+                return 'apres-midi';
+            }
+            if (type === 'jour' && label.includes('consult')) {
+                return 'consultation';
+            }
+            if (type === 'jour' && label.includes('bloc')) {
+                return 'bloc';
+            }
+            return type;
+        }
+
+        if (label.includes('nuit')) {
+            return 'nuit';
+        }
+        if (label.includes('garde')) {
+            return 'garde';
+        }
+        if (label.includes('astreinte')) {
+            return 'astreinte';
+        }
+        if (label.includes('repos')) {
+            return 'repos';
+        }
+        if (label.includes('consult')) {
+            return 'consultation';
+        }
+        if (label.includes('bloc')) {
+            return 'bloc';
+        }
+        if (label.includes('matin')) {
+            return 'matin';
+        }
+        if (label.includes('apres') || label.includes('soir')) {
+            return 'apres-midi';
+        }
+
+        return 'jour';
     }
 }

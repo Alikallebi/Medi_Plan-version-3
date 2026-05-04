@@ -1,5 +1,6 @@
 ﻿using MySqlConnector;
 using Backend.Email;
+using Microsoft.Extensions.Options;
 
 namespace Backend.Planning;
 
@@ -7,12 +8,16 @@ public sealed partial class PlanningStore
 {
     private readonly string _connectionString;
     private readonly IEmailService _emailService;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AIPlanningOptions _aiPlanningOptions;
 
-    public PlanningStore(IConfiguration configuration, IEmailService emailService)
+    public PlanningStore(IConfiguration configuration, IEmailService emailService, IHttpClientFactory httpClientFactory, IOptions<AIPlanningOptions> aiPlanningOptions)
     {
         _connectionString = configuration.GetConnectionString("ClinisysDb")
             ?? throw new InvalidOperationException("Connection string 'ClinisysDb' is missing.");
         _emailService = emailService;
+        _httpClientFactory = httpClientFactory;
+        _aiPlanningOptions = aiPlanningOptions.Value;
     }
 
     // ─── helpers notifications ────────────────────────────────────────────────
@@ -71,7 +76,7 @@ FROM staff_users WHERE id = @id LIMIT 1;";
 
         // Build IN clause safely using positional parameters
         var paramNames = idList.Select((_, i) => $"@id{i}").ToList();
-        var sql = $"SELECT id, nom, prenom, NULLIF(TRIM(photo), '') AS photo FROM staff_users WHERE id IN ({string.Join(',', paramNames)}) ORDER BY nom, prenom;";
+        var sql = $"SELECT id, nom, prenom, NULLIF(TRIM(photo), '') AS photo, competences_json FROM staff_users WHERE id IN ({string.Join(',', paramNames)}) ORDER BY nom, prenom;";
 
         await using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
@@ -88,7 +93,8 @@ FROM staff_users WHERE id = @id LIMIT 1;";
                 Id     = reader["id"]?.ToString() ?? string.Empty,
                 Nom    = reader.IsDBNull(reader.GetOrdinal("nom"))    ? string.Empty : reader.GetString("nom"),
                 Prenom = reader.IsDBNull(reader.GetOrdinal("prenom")) ? string.Empty : reader.GetString("prenom"),
-                Photo  = reader.IsDBNull(reader.GetOrdinal("photo"))  ? null : reader.GetString("photo")
+                Photo  = reader.IsDBNull(reader.GetOrdinal("photo"))  ? null : reader.GetString("photo"),
+                CompetenceIds = ParseIntList(reader.IsDBNull(reader.GetOrdinal("competences_json")) ? null : reader.GetString("competences_json"))
             });
         }
         return result;

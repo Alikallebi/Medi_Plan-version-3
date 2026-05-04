@@ -2,7 +2,7 @@ import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, Subject, concatMap, forkJoin, from, map, of, takeUntil, toArray } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { Assignment, Conflict, DragPlanningItem, DropTargetCell, Personnel, PlanningData, PlanningPoste, PlanningStats, PlanningVersion, ShiftType } from 'src/app/demo/api/planning.models';
+import { Assignment, Conflict, DragPlanningItem, DropTargetCell, Personnel, PlanningData, PlanningGenerateRequest, PlanningGenerateResponse, PlanningPoste, PlanningStats, PlanningVersion, ShiftType } from 'src/app/demo/api/planning.models';
 import { CurrentServiceService, MedicalService } from 'src/app/demo/service/current-service.service';
 import { DragDropService } from 'src/app/demo/service/drag-drop.service';
 import { PlanningNotificationService, PlanningToast } from 'src/app/demo/service/planning-notification.service';
@@ -30,6 +30,7 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
     planningData: PlanningData | null = null;
     allDaysPlanning: Assignment[] = [];
     loading = false;
+    iaOptimizing = false;
     postesCatalog: PlanningPoste[] = [];
     planningOverviewRows: PlanningOverviewRow[] = [];
     loadingOverview = false;
@@ -78,6 +79,60 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
     cursorPreviewX = 0;
     cursorPreviewY = 0;
     hasUnsavedChanges = false;
+    aiConstraintsDialogOpen = false;
+    private pendingAiServiceId: number | null = null;
+    readonly aiMandatoryRules = [
+        {
+            icon: 'pi pi-verified',
+            title: 'Couverture des postes',
+            description: 'Chaque poste requis doit rester couvert avant validation du planning.'
+        },
+        {
+            icon: 'pi pi-ban',
+            title: 'Incompatibilités de slots',
+            description: 'Un même agent ne peut pas recevoir deux affectations incompatibles.'
+        },
+        {
+            icon: 'pi pi-id-card',
+            title: 'Compétences obligatoires',
+            description: 'Un agent ne peut occuper un poste que s’il possède les compétences requises.'
+        },
+        {
+            icon: 'pi pi-calendar-times',
+            title: 'Indisponibilités bloquantes',
+            description: 'Congés, formations et indisponibilités bloquantes sont strictement respectés.'
+        },
+        {
+            icon: 'pi pi-clock',
+            title: 'Maximum 12h par jour',
+            description: 'La durée cumulée d’une journée ne doit jamais dépasser 12 heures.'
+        },
+        {
+            icon: 'pi pi-moon',
+            title: 'Repos après garde / nuit',
+            description: 'Le repos de sécurité est imposé entre une garde ou une nuit et le poste suivant.'
+        },
+        {
+            icon: 'pi pi-sort-numeric-down',
+            title: '6 jours consécutifs max',
+            description: 'Le cumul des jours travaillés ne peut pas dépasser six jours d’affilée.'
+        },
+        {
+            icon: 'pi pi-sun',
+            title: 'Repos hebdomadaire',
+            description: 'La semaine doit inclure au moins un jour complet sans travail.'
+        },
+        {
+            icon: 'pi pi-calendar-plus',
+            title: 'Quota mensuel de nuits',
+            description: 'Le quota mensuel des gardes de nuit reste plafonné par les règles du service.'
+        },
+        {
+            icon: 'pi pi-lock',
+            title: 'Affectations verrouillées',
+            description: 'Les affectations déjà fixées ne sont jamais modifiées par l’IA.'
+        }
+    ];
 
     versionHistory: PlanningVersion[] = [];
     currentVersion = 'v1';
@@ -970,6 +1025,158 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
             });
     }
 
+    optimiserAvecIA(): void {
+        if (!this.canEditPlanning()) {
+            this.planningNotificationService.showWarning('Accès refusé : vous n\'avez pas les droits pour modifier ce planning.');
+            return;
+        }
+
+        if (!this.currentService || !this.planningData) {
+            this.planningNotificationService.showError('Aucun planning actif à optimiser.');
+            return;
+        }
+
+        const numericServiceId = Number(this.currentService.id);
+        if (!Number.isFinite(numericServiceId) || numericServiceId <= 0) {
+            this.planningNotificationService.showError('Service invalide pour lancer l\'optimisation.');
+            return;
+        }
+
+        this.pendingAiServiceId = numericServiceId;
+        this.aiConstraintsDialogOpen = true;
+    }
+
+    cancelAiMandatoryConstraints(): void {
+        this.aiConstraintsDialogOpen = false;
+        this.pendingAiServiceId = null;
+    }
+
+    acceptAiMandatoryConstraints(): void {
+        const serviceId = this.pendingAiServiceId;
+        this.aiConstraintsDialogOpen = false;
+        this.pendingAiServiceId = null;
+
+        if (!serviceId) {
+            return;
+        }
+
+        this.launchAiOptimization(serviceId);
+    }
+
+    private launchAiOptimization(numericServiceId: number): void {
+        if (this.allDaysPlanning.length > 0) {
+            const confirmReplace = window.confirm(
+                'Le planning actuel contient déjà des affectations. Voulez-vous les remplacer par la proposition IA ?'
+            );
+            if (!confirmReplace) {
+                return;
+            }
+        }
+
+        const payload: PlanningGenerateRequest = {
+            serviceId: numericServiceId,
+            weekStart: this.toIsoDate(this.weekStart),
+            weekEnd: this.toIsoDate(this.weekEnd),
+            constraints: {
+                userAcceptedMandatoryRules: true,
+                userAcceptedAtUtc: new Date().toISOString(),
+                requirePostCoverage: true,
+                enforceSlotIncompatibilities: true,
+                respectReposLegaux: true,
+                competencesObligatoires: true,
+                enforceBlockingUnavailabilities: true,
+                enforceMaxDailyDuration12h: true,
+                enforceSecurityRestAfterGuardOrNight: true,
+                enforceMaxConsecutiveDays6: true,
+                enforceWeeklyRest35hSimplified: true,
+                enforceMonthlyNightQuota: true,
+                maxMonthlyNightShifts: 4,
+                preserveLockedAssignments: true,
+                prioriserDisponibilites: true
+            }
+        };
+
+        this.iaOptimizing = true;
+        this.planningService.generatePlanning(payload)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: (response) => {
+                    const generatedAssignments = this.extractGeneratedAssignments(response);
+                    if (generatedAssignments.length === 0) {
+                        const diagnosticsSummary = this.getAiDiagnosticsSummary(response);
+                        this.planningNotificationService.showWarning(
+                            diagnosticsSummary
+                                || response?.message
+                                || 'Aucune solution n\'a pu être trouvée avec les contraintes actuelles. Veuillez ajuster les paramètres ou libérer des contraintes.'
+                        );
+                        return;
+                    }
+
+                    this.pushUndoState();
+                    this.allDaysPlanning = generatedAssignments.map(item => ({ ...item }));
+                    this.syncLocalPlanningState();
+                    this.redoStack = [];
+
+                    const isPartial = this.isPartialPlanningResponse(response, generatedAssignments.length);
+                    if (isPartial) {
+                        const diagnosticsSummary = this.getAiDiagnosticsSummary(response);
+                        this.planningNotificationService.showWarning(
+                            diagnosticsSummary
+                                || `Planning partiel généré (${generatedAssignments.length} affectation(s)). Vérifiez et complétez avant soumission.`
+                        );
+                        return;
+                    }
+
+                    this.planningNotificationService.showSuccess(
+                        `Planning généré automatiquement (${generatedAssignments.length} affectation(s)).`
+                    );
+                },
+                error: (error) => {
+                    this.iaOptimizing = false;
+                    const message = error?.error?.message
+                        || 'Aucune solution n\'a pu être trouvée avec les contraintes actuelles. Veuillez ajuster les paramètres ou libérer des contraintes.';
+                    this.planningNotificationService.showError(message);
+                },
+                complete: () => {
+                    this.iaOptimizing = false;
+                }
+            });
+    }
+
+    private getAiDiagnosticsSummary(response: PlanningGenerateResponse | null | undefined): string {
+        const qualityScore = typeof response?.qualityScore === 'number'
+            ? Math.max(0, Math.min(100, Math.round(response.qualityScore)))
+            : undefined;
+
+        const conflictSource = response?.conflicts
+            || response?.data?.conflicts
+            || [];
+
+        const qualityLine = qualityScore !== undefined
+            ? `Qualité IA: ${qualityScore}/100`
+            : '';
+
+        if (!Array.isArray(conflictSource) || conflictSource.length === 0) {
+            return qualityLine || '';
+        }
+
+        const interesting = conflictSource
+            .filter(conflict => conflict?.type === 'eligibility_diagnostic' || conflict?.type === 'competence_manquante' || conflict?.type === 'undercoverage')
+            .slice(0, 3)
+            .map(conflict => {
+                const base = conflict?.description || conflict?.details || 'Contrainte bloquante';
+                const details = conflict?.details ? ` (${conflict.details})` : '';
+                return `- ${base}${details}`;
+            });
+
+        if (interesting.length === 0) {
+            return [qualityLine, response?.message || ''].filter(Boolean).join('\n');
+        }
+
+        const header = response?.message || 'Generation IA limitee par les contraintes obligatoires.';
+        return [qualityLine, header, ...interesting].filter(Boolean).join('\n');
+    }
+
     submitForValidation(): void {
 
         if (!this.planningData) {
@@ -1127,71 +1334,64 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
                         this.planningNotificationService.showInfo(`Propagation effectuée sur ${generatedCount} cellule(s).`);
                     }
 
-                    // Soumettre le planning au workflow
                     this.planningService.submitPlanningToWorkflow(
                         this.planningData!.id,
                         createdBy,
                         createdById
                     )
-                    .pipe(takeUntil(this.destroy$))
-                    .subscribe({
-                        next: response => {
-                            if (!response.success) {
-                                this.loading = false;
-                                this.planningNotificationService.showError(
-                                    response.message || 'Erreur lors de la soumission'
-                                );
-                                return;
-                            }
+                        .pipe(takeUntil(this.destroy$))
+                        .subscribe({
+                            next: response => {
+                                if (!response.success) {
+                                    this.loading = false;
+                                    this.planningNotificationService.showError(response.message || 'Erreur lors de la soumission');
+                                    return;
+                                }
 
-                            // Déclencher le circuit de validation MySQL via l'endpoint dédié
-                            const weekId = response.weekId ? parseInt(response.weekId, 10) : 0;
-                            if (weekId > 0) {
-                                this.workflowConfigService.soumettrePlanning(weekId)
-                                    .pipe(takeUntil(this.destroy$))
-                                    .subscribe({
-                                        next: () => {
-                                            this.loading = false;
-                                            this.hasUnsavedChanges = false;
-                                            this.planningNotificationService.showSuccess(
-                                                'Planning soumis avec succès ! Les validateurs ont été notifiés.'
-                                            );
-                                            this.createVersion('Soumission pour validation');
-                                            setTimeout(() => {
-                                                this.router.navigate(['/workflow/mes-soumissions']);
-                                            }, 1500);
-                                        },
-                                        error: (wfErr) => {
-                                            this.loading = false;
-                                            const msg = wfErr?.error?.message
-                                                || 'Planning soumis, mais le circuit de validation est inaccessible.';
-                                            this.planningNotificationService.showWarning(msg);
-                                            this.createVersion('Soumission pour validation');
-                                            setTimeout(() => {
-                                                this.router.navigate(['/workflow/mes-soumissions']);
-                                            }, 2000);
-                                        }
-                                    });
-                            } else {
+                                const weekId = response.weekId ? parseInt(response.weekId, 10) : 0;
+                                if (weekId > 0) {
+                                    this.workflowConfigService.soumettrePlanning(weekId)
+                                        .pipe(takeUntil(this.destroy$))
+                                        .subscribe({
+                                            next: () => {
+                                                this.loading = false;
+                                                this.hasUnsavedChanges = false;
+                                                this.planningNotificationService.showSuccess('Planning soumis avec succès ! Les validateurs ont été notifiés.');
+                                                this.createVersion('Soumission pour validation');
+                                                setTimeout(() => {
+                                                    this.router.navigate(['/workflow/mes-soumissions']);
+                                                }, 1500);
+                                            },
+                                            error: (wfErr) => {
+                                                this.loading = false;
+                                                const msg = wfErr?.error?.message || 'Planning soumis, mais le circuit de validation est inaccessible.';
+                                                this.planningNotificationService.showWarning(msg);
+                                                this.createVersion('Soumission pour validation');
+                                                setTimeout(() => {
+                                                    this.router.navigate(['/workflow/mes-soumissions']);
+                                                }, 2000);
+                                            }
+                                        });
+                                } else {
+                                    this.loading = false;
+                                    this.hasUnsavedChanges = false;
+                                    this.planningNotificationService.showSuccess('Planning soumis avec succès !');
+                                    this.createVersion('Soumission pour validation');
+                                    setTimeout(() => {
+                                        this.router.navigate(['/workflow/mes-soumissions']);
+                                    }, 1500);
+                                }
+                            },
+                            error: (err) => {
                                 this.loading = false;
-                                this.hasUnsavedChanges = false;
-                                this.planningNotificationService.showSuccess('Planning soumis avec succès !');
-                                this.createVersion('Soumission pour validation');
-                                setTimeout(() => {
-                                    this.router.navigate(['/workflow/mes-soumissions']);
-                                }, 1500);
+                                const errorMsg = err?.error?.message || err?.message || 'Erreur lors de la soumission';
+                                this.planningNotificationService.showError(errorMsg);
                             }
-                        },
-                        error: (err) => {
-                            this.loading = false;
-                            const errorMsg = err?.error?.message || err?.message || 'Erreur lors de la soumission';
-                            this.planningNotificationService.showError(errorMsg);
-                        }
-                    });
+                        });
                 },
                 error: () => {
                     this.loading = false;
-                    this.planningNotificationService.showError('Impossible de préparer le planning avant soumission.');
+                    this.planningNotificationService.showError('Impossible de propager les affectations de la période.');
                 }
             });
     }
@@ -1211,23 +1411,8 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
             return;
         }
         this.selectedPosteForQuickFill = poste;
+        const numericPosteId = Number(poste.id);
         this.updateCompatiblePersonnelFilter(poste.id);
-    }
-
-    private updateCompatiblePersonnelFilter(posteId?: string): void {
-        if (!posteId) {
-            this.compatiblePersonnelIds = null;
-            this.noCompatiblePersonnelMessage = '';
-            return;
-        }
-
-        const numericPosteId = Number(posteId);
-        if (!Number.isFinite(numericPosteId) || numericPosteId <= 0) {
-            this.compatiblePersonnelIds = null;
-            this.noCompatiblePersonnelMessage = '';
-            return;
-        }
-
         this.getCompatiblePersonnelIdsForPoste(numericPosteId)
             .pipe(takeUntil(this.destroy$))
             .subscribe(ids => {
@@ -1243,6 +1428,158 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
                     ? 'Aucun personnel disponible avec les compétences requises'
                     : '';
             });
+    }
+
+    private updateCompatiblePersonnelFilter(posteId?: number | string): void {
+        if (posteId === undefined || posteId === null || posteId === '') {
+            this.compatiblePersonnelIds = null;
+            this.noCompatiblePersonnelMessage = '';
+            return;
+        }
+
+        const numericPosteId = Number(posteId);
+        if (!Number.isFinite(numericPosteId) || numericPosteId <= 0) {
+            this.compatiblePersonnelIds = null;
+            this.noCompatiblePersonnelMessage = 'Filtrage compétences indisponible pour ce poste.';
+            return;
+        }
+
+        this.getCompatiblePersonnelIdsForPoste(numericPosteId)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(ids => {
+                this.compatiblePersonnelIds = ids;
+                this.noCompatiblePersonnelMessage = ids && ids.size === 0
+                    ? 'Aucun personnel disponible avec les compétences requises'
+                    : '';
+            });
+    }
+
+    private extractGeneratedAssignments(response: PlanningGenerateResponse | null | undefined): Assignment[] {
+        const source = this.extractGeneratedRawAssignments(response);
+        const mapped = source
+            .map((item, index) => this.mapGeneratedAssignment(item, index))
+            .filter((item): item is Assignment => !!item);
+
+        const byCell = new Map<string, Assignment>();
+        for (const item of mapped) {
+            byCell.set(`${item.personnelId}::${item.day}`, item);
+        }
+
+        return Array.from(byCell.values());
+    }
+
+    private extractGeneratedRawAssignments(response: PlanningGenerateResponse | null | undefined): any[] {
+        if (!response) {
+            return [];
+        }
+
+        if (Array.isArray(response as any)) {
+            return response as any[];
+        }
+
+        if (Array.isArray(response.assignments)) {
+            return response.assignments as any[];
+        }
+
+        if (Array.isArray(response.proposedAssignments)) {
+            return response.proposedAssignments as any[];
+        }
+
+        if (Array.isArray(response.data?.assignments)) {
+            return response.data?.assignments as any[];
+        }
+
+        return [];
+    }
+
+    private mapGeneratedAssignment(item: any, index: number): Assignment | null {
+        const personnelIdValue = item?.personnelId ?? item?.employeeId ?? item?.staffId ?? item?.userId;
+        const personnelId = `${personnelIdValue ?? ''}`.trim();
+        if (!personnelId) {
+            return null;
+        }
+
+        const day = this.resolveGeneratedDay(item);
+        if (day === null) {
+            return null;
+        }
+
+        const shiftTypeRaw = item?.shiftType ?? item?.type ?? item?.posteType;
+        const shiftType = this.normalizeShiftType(shiftTypeRaw);
+        const posteLabel = `${item?.posteLabel ?? item?.posteName ?? item?.poste ?? ''}`.trim();
+        const posteId = `${item?.posteId ?? item?.postId ?? ''}`.trim() || undefined;
+        const startTime = this.normalizeGeneratedTime(item?.startTime ?? item?.heureDebut ?? item?.debut);
+        const endTime = this.normalizeGeneratedTime(item?.endTime ?? item?.heureFin ?? item?.fin);
+        const assignmentId = `${item?.id ?? ''}`.trim() || `ia-${personnelId}-${day}-${index}`;
+
+        return {
+            id: assignmentId,
+            personnelId,
+            day,
+            shiftType,
+            posteId,
+            posteLabel: posteLabel || undefined,
+            startTime,
+            endTime,
+            note: `${item?.note ?? item?.commentaire ?? ''}`.trim() || undefined,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+    }
+
+    private resolveGeneratedDay(item: any): number | null {
+        const dayCandidate = Number(item?.day ?? item?.dayIndex);
+        if (Number.isInteger(dayCandidate) && dayCandidate >= 0 && dayCandidate <= 6) {
+            return dayCandidate;
+        }
+
+        const dateCandidate = `${item?.date ?? item?.startDate ?? ''}`.trim();
+        if (!dateCandidate) {
+            return null;
+        }
+
+        const parsed = new Date(dateCandidate);
+        if (Number.isNaN(parsed.getTime())) {
+            return null;
+        }
+
+        const base = new Date(this.weekStart);
+        base.setHours(0, 0, 0, 0);
+        parsed.setHours(0, 0, 0, 0);
+        const day = Math.round((parsed.getTime() - base.getTime()) / (24 * 60 * 60 * 1000));
+        return day >= 0 && day <= 6 ? day : null;
+    }
+
+    private normalizeGeneratedTime(value: unknown): string | undefined {
+        const text = `${value ?? ''}`.trim();
+        if (!text) {
+            return undefined;
+        }
+
+        const hhmm = text.match(/^(\d{2}:\d{2})(?::\d{2})?$/);
+        if (hhmm) {
+            return hhmm[1];
+        }
+
+        return undefined;
+    }
+
+    private isPartialPlanningResponse(response: PlanningGenerateResponse | null | undefined, generatedCount: number): boolean {
+        if (!response) {
+            return false;
+        }
+
+        if (response.partial === true || response.isPartial === true) {
+            return true;
+        }
+
+        const lowerMessage = `${response.message ?? ''}`.toLowerCase();
+        if (lowerMessage.includes('partiel')) {
+            return true;
+        }
+
+        const expectedSlots = this.filteredPersonnel.length * 7;
+        return expectedSlots > 0 && generatedCount < expectedSlots;
     }
 
     private refreshCompetenceConflicts(): void {
@@ -2032,6 +2369,13 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
         return date.toISOString().split('T')[0];
     }
 
+    private toIsoDate(date: Date): string {
+        const y = date.getFullYear();
+        const m = `${date.getMonth() + 1}`.padStart(2, '0');
+        const d = `${date.getDate()}`.padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
     private toInputMonth(date: Date): string {
         const month = `${date.getMonth() + 1}`.padStart(2, '0');
         return `${date.getFullYear()}-${month}-01`;
@@ -2330,6 +2674,7 @@ export class PlanningPageComponent implements OnInit, OnDestroy {
                 }
             });
     }
+    
 
     ngOnDestroy(): void {
         this.destroy$.next();

@@ -333,7 +333,7 @@
 
     <label>
         <span>Type d'événement</span>
-        <select [(ngModel)]="requestForm.type">
+        <select [(ngModel)]="requestForm.type" (ngModelChange)="onRequestTypeChange()">
             <option *ngFor="let option of requestTypeOptions" [ngValue]="option.value">{{ option.label }}</option>
         </select>
     </label>
@@ -341,7 +341,7 @@
     <div class="modal-hours">
         <label>
             <span>Heure début</span>
-            <input type="time" [(ngModel)]="requestForm.heureDebut" />
+            <input type="time" [(ngModel)]="requestForm.heureDebut" [readonly]="requestForm.type === 'HS'" />
         </label>
         <label>
             <span>Heure fin</span>

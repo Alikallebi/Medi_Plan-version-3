@@ -41,6 +41,7 @@ export class DemandeModalComponent implements OnChanges {
     @Input() loading = false;
     @Input() defaultDate = '';
     @Input() workEndHourByDate: Record<string, string> = {};
+    @Input() planningAvailableByDate: Record<string, boolean> = {};
     @Input() typeDefinitions: DemandeTypeDefinition[] = [];
 
     @Output() close = new EventEmitter<void>();
@@ -122,7 +123,19 @@ export class DemandeModalComponent implements OnChanges {
     }
 
     get selectedType(): RequestTypeOption {
-        return this.requestTypes.find(item => item.code === this.form.type) || this.requestTypes[0];
+        return this.availableRequestTypes.find(item => item.code === this.form.type) || this.availableRequestTypes[0];
+    }
+
+    get availableRequestTypes(): RequestTypeOption[] {
+        if (this.hasPlanningOnSelectedDate) {
+            return this.requestTypes;
+        }
+
+        return this.requestTypes.filter(item => item.code === 'AS');
+    }
+
+    get hasPlanningOnSelectedDate(): boolean {
+        return this.planningAvailableByDate?.[this.form.startDate] === true;
     }
 
     get isHsType(): boolean {
@@ -239,6 +252,8 @@ export class DemandeModalComponent implements OnChanges {
             this.form.endDate = this.form.startDate;
         }
 
+        this.ensureAllowedTypeForDate();
+
         if (this.isHsType) {
             this.applyAutoHsStartTime(true);
         }
@@ -322,6 +337,15 @@ export class DemandeModalComponent implements OnChanges {
             return { ok: false, message: 'Le type de demande est obligatoire.' };
         }
 
+        if (!this.hasPlanningOnSelectedDate && this.form.type !== 'AS') {
+            return { ok: false, message: 'Sur un jour sans planning, seule une demande d astreinte est autorisee.' };
+        }
+
+        const todayIso = this.toIsoDate(new Date());
+        if (this.form.startDate < todayIso) {
+            return { ok: false, message: 'Les demandes pour des jours deja passes ne sont pas autorisees.' };
+        }
+
         if (!this.isHsType && !this.isAtType) {
             if (!this.getNormalizedEndDate()) {
                 return { ok: false, message: 'La date de fin est obligatoire.' };
@@ -329,6 +353,10 @@ export class DemandeModalComponent implements OnChanges {
 
             if (this.getNormalizedEndDate() < this.form.startDate) {
                 return { ok: false, message: 'La date de fin doit etre posterieure ou egale a la date de debut.' };
+            }
+
+            if (this.getNormalizedEndDate() < todayIso) {
+                return { ok: false, message: 'Les demandes pour des jours deja passes ne sont pas autorisees.' };
             }
         }
 
@@ -339,6 +367,14 @@ export class DemandeModalComponent implements OnChanges {
 
             if (this.form.startTime === this.form.endTime) {
                 return { ok: false, message: 'L heure de fin doit etre differente de l heure de debut.' };
+            }
+
+            const minimumStart = this.getMinimumHsStartTime(this.form.startDate);
+            if (minimumStart && this.form.startTime < minimumStart) {
+                return {
+                    ok: false,
+                    message: `La demande HS doit commencer a partir de ${minimumStart}.`
+                };
             }
         }
 
@@ -384,6 +420,13 @@ export class DemandeModalComponent implements OnChanges {
             }
         }
 
+        if (this.showTimeFields && this.isToday(this.form.startDate)) {
+            const currentTime = this.getCurrentTimeRoundedToMinute();
+            if (this.form.startTime < currentTime) {
+                return { ok: false, message: `L heure de debut doit etre posterieure a ${currentTime}.` };
+            }
+        }
+
         if (this.isAtType && this.form.startDate !== this.form.endDate) {
             this.form.endDate = this.form.startDate;
         }
@@ -409,6 +452,8 @@ export class DemandeModalComponent implements OnChanges {
     }
 
     private applyTypeDefaults(adjustTime = false): void {
+        this.ensureAllowedTypeForDate();
+
         if (this.isHsType) {
             this.form.endDate = this.form.startDate;
             this.applyAutoHsStartTime(adjustTime);
@@ -440,7 +485,7 @@ export class DemandeModalComponent implements OnChanges {
             return;
         }
 
-        const suggested = this.getPlannedEndTime(this.form.startDate);
+        const suggested = this.getMinimumHsStartTime(this.form.startDate);
         if (!suggested) {
             return;
         }
@@ -459,6 +504,27 @@ export class DemandeModalComponent implements OnChanges {
     private getPlannedEndTime(dateIso: string): string {
         const candidate = `${this.workEndHourByDate?.[dateIso] ?? ''}`.trim();
         return /^\d{2}:\d{2}$/.test(candidate) ? candidate : '';
+    }
+
+    private ensureAllowedTypeForDate(): void {
+        const allowed = this.availableRequestTypes.map(item => item.code);
+        if (!allowed.includes(this.form.type)) {
+            this.form.type = allowed[0];
+        }
+    }
+
+    private getMinimumHsStartTime(dateIso: string): string {
+        const plannedEnd = this.getPlannedEndTime(dateIso);
+        if (!this.isToday(dateIso)) {
+            return plannedEnd;
+        }
+
+        const now = this.getCurrentTimeRoundedToMinute();
+        if (!plannedEnd) {
+            return now;
+        }
+
+        return plannedEnd > now ? plannedEnd : now;
     }
 
     private calculateDurationMinutes(start: string, end: string, allowCrossMidnight: boolean): number {
@@ -505,6 +571,11 @@ export class DemandeModalComponent implements OnChanges {
         const hh = Math.floor(next / 60);
         const mm = next % 60;
         return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+
+    private getCurrentTimeRoundedToMinute(): string {
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
     private formatDuration(minutes: number): string {
@@ -637,5 +708,9 @@ export class DemandeModalComponent implements OnChanges {
         const mm = String(date.getMonth() + 1).padStart(2, '0');
         const dd = String(date.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
+    }
+
+    private isToday(dateIso: string): boolean {
+        return dateIso === this.toIsoDate(new Date());
     }
 }

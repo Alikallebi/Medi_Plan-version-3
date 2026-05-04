@@ -20,55 +20,41 @@
         <span>{{ getConflictDescription() }}</span>
     </div>
 
-    <div class="timeline-wrapper" *ngIf="fullWidthEvent; else timelineTemplate">
-        <article
-            class="full-width-event"
-            [ngClass]="'event-' + fullWidthEvent.type.toLowerCase()"
-            [title]="fullWidthTitle">
-            <span class="event-icon" *ngIf="fullWidthEvent.type === 'ARRET'">!</span>
-            <span class="event-label">{{ fullWidthLabel }}</span>
-            <span class="event-reason" *ngIf="fullWidthEvent.reason">{{ fullWidthEvent.reason }}</span>
-            <span class="event-badge at" *ngIf="showAtBadge">AT</span>
-            <span class="event-badge warning" *ngIf="showUnjustifiedWarning">!</span>
-        </article>
+    <div class="planning-cell-content" *ngIf="showShiftBadges; else fullWidthOrEmpty">
+        <div class="shift-badge-list">
+            <article
+                *ngFor="let item of renderedAssignments"
+                class="shift-badge"
+                [ngClass]="getShiftBadgeClass(item)"
+                [attr.title]="getAssignmentTooltip(item)">
+                <span class="shift-badge-icon" aria-hidden="true">
+                    <i [ngClass]="getShiftIconClass(item)"></i>
+                </span>
+
+                <span class="shift-badge-main" [class.is-weekend-default]="isSyntheticRestAssignment(item)">
+                    <span class="shift-badge-label">{{ getCompactLabel(item) }}</span>
+                    <span class="shift-badge-time" *ngIf="getCompactTimeRange(item)">{{ getCompactTimeRange(item) }}</span>
+                </span>
+            </article>
+        </div>
     </div>
 
-    <ng-template #timelineTemplate>
-        <div class="timeline-wrapper" *ngIf="hasTimelineBlocks; else emptyState">
-            <div class="timeline-axis" aria-hidden="true">
-                <span>06h</span>
-                <span>22h</span>
-            </div>
-
-            <div class="timeline-track">
-                <article
-                    *ngFor="let block of timelineBlocks"
-                    class="timeline-block"
-                    [ngClass]="[
-                        'block-' + block.type.toLowerCase(),
-                        block.isOverlay ? 'is-overlay' : '',
-                        block.interventionActive ? 'intervention-active' : ''
-                    ]"
-                    [style.left.%]="block.leftPct"
-                    [style.width.%]="block.widthPct"
-                    [title]="block.title">
-                    <span class="block-label">{{ block.label }}</span>
-                    <span class="block-indicator" *ngIf="block.interventionActive">intervention active</span>
-                </article>
-            </div>
-
-            <span class="hs-badge" *ngIf="hsMinutes > 0" [title]="hsBadgeLabel">{{ hsBadgeLabel }}</span>
+    <ng-template #fullWidthOrEmpty>
+        <div class="timeline-wrapper" *ngIf="fullWidthEvent; else emptyState">
+            <article
+                class="full-width-event"
+                [ngClass]="'event-' + fullWidthEvent.type.toLowerCase()"
+                [title]="fullWidthTitle">
+                <span class="event-icon" *ngIf="fullWidthEvent.type === 'ARRET'">!</span>
+                <span class="event-label">{{ fullWidthLabel }}</span>
+                <span class="event-reason" *ngIf="fullWidthEvent.reason">{{ fullWidthEvent.reason }}</span>
+            </article>
         </div>
     </ng-template>
 
     <ng-template #emptyState>
         <div class="empty-drop-zone">
-            <span *ngIf="isVacation" class="emoji-flag">VA</span>
-            <span *ngIf="isRestDay && !isVacation" class="emoji-flag">JR</span>
-            <ng-container *ngIf="!isVacation && !isRestDay">
-                <i class="pi pi-plus-circle drop-icon"></i>
-                <span class="drop-label">Glisser ici</span>
-            </ng-container>
+            <span class="empty-symbol">—</span>
         </div>
     </ng-template>
 

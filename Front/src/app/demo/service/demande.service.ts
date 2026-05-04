@@ -40,27 +40,61 @@ export class DemandeService {
         return this.http.get<DemandeHistoriqueItem[]>(`${this.apiUrl}/demandes/${id}/historique`, { params });
     }
 
+    annulerDemande(id: number, actingUserId: number): Observable<DemandeItem> {
+        const payload = { actingUserId };
+        return this.http.put<DemandeItem>(`${this.apiUrl}/demandes/${id}/annuler`, payload);
+    }
+
     createDemande(actingUserId: number, demande: DemandeCreatePayload): Observable<DemandeItem> {
+        const normalizedDemande = this.normalizeCreatePayload(demande, actingUserId);
         const fullPayload = {
             actingUserId,
-            ...demande,
-            userId: actingUserId,
-            startDate: demande.startDate ?? demande.date,
-            endDate: demande.endDate ?? demande.dateFin ?? demande.date,
-            startTime: demande.startTime ?? demande.heureDebut,
-            endTime: demande.endTime ?? demande.heureFin,
-            comment: demande.commentaire
+            ...normalizedDemande,
+            startDate: normalizedDemande.startDate,
+            endDate: normalizedDemande.endDate,
+            startTime: normalizedDemande.startTime,
+            endTime: normalizedDemande.endTime,
+            comment: normalizedDemande.commentaire
         };
 
         return this.http.post<DemandeItem>(`${this.apiUrl}/requests`, fullPayload).pipe(
             catchError(() => this.http.post<DemandeItem>(`${this.apiUrl}/demandes`, {
                 actingUserId,
                 demande: {
-                ...demande,
-                userId: actingUserId
-            }
+                    ...normalizedDemande
+                }
             }))
         );
+    }
+
+    private normalizeCreatePayload(demande: DemandeCreatePayload, actingUserId: number): DemandeCreatePayload & {
+        userId: number;
+        startDate: string;
+        endDate: string;
+        startTime: string;
+        endTime: string;
+        heureDebut: string;
+        heureFin: string;
+        date: string;
+        dateFin: string;
+    } {
+        const normalizedStartDate = `${demande.startDate ?? demande.date ?? ''}`.trim();
+        const normalizedEndDate = `${demande.endDate ?? demande.dateFin ?? normalizedStartDate}`.trim();
+        const normalizedStartTime = `${demande.startTime ?? demande.heureDebut ?? ''}`.trim();
+        const normalizedEndTime = `${demande.endTime ?? demande.heureFin ?? ''}`.trim();
+
+        return {
+            ...demande,
+            userId: actingUserId,
+            date: normalizedStartDate,
+            dateFin: normalizedEndDate,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+            heureDebut: normalizedStartTime,
+            heureFin: normalizedEndTime,
+            startTime: normalizedStartTime,
+            endTime: normalizedEndTime
+        };
     }
 
     validerDemande(id: number, actingUserId: number, validatorName: string): Observable<DemandeItem> {

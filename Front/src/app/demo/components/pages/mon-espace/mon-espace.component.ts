@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { ConfirmationService } from 'primeng/api';
 import { AuthService } from 'src/app/demo/service/auth.service';
 import { MonPlanningQueryContext, MonPlanningService } from 'src/app/demo/service/mon-planning.service';
 import { Affectation, Compteurs, PlanningDay } from 'src/app/demo/models/mon-planning.model';
@@ -12,7 +13,8 @@ import { PlanningNotificationService } from 'src/app/demo/service/planning-notif
 @Component({
     selector: 'app-mon-espace',
     templateUrl: './mon-espace.component.html',
-    styleUrls: ['./mon-espace.component.scss']
+    styleUrls: ['./mon-espace.component.scss'],
+    providers: [ConfirmationService]
 })
 export class MonEspaceComponent implements OnInit {
     weekStart = this.getCurrentWeekStart(new Date());
@@ -39,6 +41,7 @@ export class MonEspaceComponent implements OnInit {
     expandedDemandeHistoryId: string | null = null;
     demandeHistoryLoadingId: string | null = null;
     demandeHistoryMap: Record<string, DemandeHistoriqueItem[]> = {};
+    cancelDemandeLoading = false;
     private planningContext: MonPlanningQueryContext | null = null;
 
     readonly defaultDemandeTypes: DemandeTypeDefinition[] = [
@@ -60,7 +63,8 @@ export class MonEspaceComponent implements OnInit {
         private readonly monPlanningService: MonPlanningService,
         private readonly demandeService: DemandeService,
         private readonly compteurService: CompteurService,
-        private readonly planningNotificationService: PlanningNotificationService
+        private readonly planningNotificationService: PlanningNotificationService,
+        private readonly confirmationService: ConfirmationService
     ) {}
 
     ngOnInit(): void {
@@ -113,6 +117,16 @@ export class MonEspaceComponent implements OnInit {
             if (endHours.length > 0) {
                 result[day.date] = this.maxHour(endHours);
             }
+        }
+
+        return result;
+    }
+
+    get planningAvailableByDate(): Record<string, boolean> {
+        const result: Record<string, boolean> = {};
+
+        for (const day of this.planningDays) {
+            result[day.date] = (day.affectations?.length ?? 0) > 0;
         }
 
         return result;
@@ -241,6 +255,10 @@ export class MonEspaceComponent implements OnInit {
         });
     }
 
+    isPastDay(dateIso: string): boolean {
+        return this.normalizeRequestDate(dateIso) < this.toIsoDate(new Date());
+    }
+
     formatCounterHours(value: number): string {
         return `${Number(value ?? 0).toFixed(2).replace('.', ',')} h`;
     }
@@ -358,6 +376,10 @@ export class MonEspaceComponent implements OnInit {
     getDemandeStatusLabel(status: string): string {
         const normalized = `${status ?? ''}`.trim().toLowerCase();
 
+        if (normalized === 'annulee' || normalized === 'annule') {
+            return 'Annulée';
+        }
+
         if (normalized === 'approuve' || normalized === 'approuvee') {
             return 'Approuvée';
         }
@@ -375,6 +397,10 @@ export class MonEspaceComponent implements OnInit {
 
     getDemandeStatusClass(status: string): string {
         const normalized = `${status ?? ''}`.trim().toLowerCase();
+
+        if (normalized === 'annulee' || normalized === 'annule') {
+            return 'status-cancelled';
+        }
 
         if (normalized === 'approuve' || normalized === 'approuvee') {
             return 'status-approved';
@@ -550,7 +576,83 @@ export class MonEspaceComponent implements OnInit {
             return 'Rejet';
         }
 
+        if (normalized === 'CANCELLED') {
+            return 'Annulation';
+        }
+
         return normalized || 'Action';
+    }
+
+    canCancelDemande(demande: DemandeItem | null): boolean {
+        if (!demande || this.cancelDemandeLoading) {
+            return false;
+        }
+
+        const status = `${demande.statut ?? ''}`.trim().toLowerCase();
+        const canCancelByStatus = status === 'en_attente'
+            || status === 'approuvee'
+            || status === 'approuve'
+            || status === 'informatif'
+            || status === 'info'
+            || status === 'notification';
+
+        if (!canCancelByStatus) {
+            return false;
+        }
+
+        const requestEndDateIso = this.normalizeRequestDate(demande.dateFin || demande.date);
+        const todayIso = this.toIsoDate(new Date());
+        return requestEndDateIso >= todayIso;
+    }
+
+    cancelSelectedDemande(): void {
+        const demande = this.selectedDemandeDetail;
+        const userId = this.planningContext?.userId ?? this.getCurrentUserId();
+
+        if (!demande?.id || !userId || !this.canCancelDemande(demande)) {
+            return;
+        }
+
+        const demandeCode = this.getDemandeTypeMeta(demande.type).code;
+        const periodLabel = this.formatDemandePeriod(demande);
+
+        this.confirmationService.confirm({
+            key: 'cancel-demande-confirm',
+            header: 'Annuler la demande',
+            message: `Vous allez annuler la demande ${demandeCode} (${periodLabel}). Cette action est définitive.`,
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'Confirmer l\'annulation',
+            rejectLabel: 'Garder la demande',
+            acceptButtonStyleClass: 'p-button-danger',
+            rejectButtonStyleClass: 'p-button-text',
+            accept: () => this.executeCancelDemande(demande.id, userId)
+        });
+    }
+
+    private executeCancelDemande(demandeId: number, userId: number): void {
+        if (this.cancelDemandeLoading) {
+            return;
+        }
+
+        this.cancelDemandeLoading = true;
+        this.demandeError = '';
+        this.demandeSuccess = '';
+
+        this.demandeService.annulerDemande(demandeId, userId).subscribe({
+            next: () => {
+                this.cancelDemandeLoading = false;
+                this.demandeSuccess = 'La demande a été annulée avec succès.';
+                this.closeDemandeDetail();
+                if (this.planningContext) {
+                    this.loadPage(this.planningContext);
+                    this.loadCounters(this.planningContext.userId);
+                }
+            },
+            error: (error) => {
+                this.cancelDemandeLoading = false;
+                this.demandeError = error?.error?.message || 'Impossible d\'annuler cette demande.';
+            }
+        });
     }
 
     getHistoryActorLabel(item: DemandeHistoriqueItem): string {

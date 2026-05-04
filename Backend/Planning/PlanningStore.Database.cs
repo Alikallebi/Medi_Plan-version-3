@@ -262,7 +262,8 @@ SELECT
     prenom,
     COALESCE(NULLIF(TRIM(role), ''), 'Personnel') AS poste,
     NULLIF(TRIM(specialite), '') AS specialite,
-    NULLIF(TRIM(photo), '') AS photo
+    NULLIF(TRIM(photo), '') AS photo,
+    competences_json
 FROM staff_users
 WHERE service_id = @serviceId
 ORDER BY nom, prenom;";
@@ -286,7 +287,8 @@ ORDER BY nom, prenom;";
                 Prenom = reader.GetString("prenom"),
                 Poste = reader.IsDBNull(reader.GetOrdinal("poste")) ? "Personnel" : reader.GetString("poste"),
                 Specialite = reader.IsDBNull(reader.GetOrdinal("specialite")) ? null : reader.GetString("specialite"),
-                Photo = reader.IsDBNull(reader.GetOrdinal("photo")) ? null : reader.GetString("photo")
+                Photo = reader.IsDBNull(reader.GetOrdinal("photo")) ? null : reader.GetString("photo"),
+                CompetenceIds = ParseIntList(reader.IsDBNull(reader.GetOrdinal("competences_json")) ? null : reader.GetString("competences_json"))
             });
         }
 

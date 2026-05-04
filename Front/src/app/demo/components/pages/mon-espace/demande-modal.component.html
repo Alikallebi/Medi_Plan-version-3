@@ -23,7 +23,7 @@
                 <button
                     type="button"
                     class="type-chip"
-                    *ngFor="let option of requestTypes"
+                    *ngFor="let option of availableRequestTypes"
                     [class.active]="form.type === option.code"
                     [disabled]="loading"
                     [title]="option.description"
@@ -95,6 +95,10 @@
         <div class="full-width info-panel" *ngIf="form.type === 'AS'">
             Duree astreinte calculee: <strong>{{ computedAsDurationLabel }}</strong>
             <small>En cas d intervention, une demande HS distincte doit etre creee et liee a cette astreinte.</small>
+        </div>
+
+        <div class="full-width info-panel" *ngIf="!hasPlanningOnSelectedDate">
+            Ce jour ne contient aucun planning. Seule une demande d astreinte est autorisee.
         </div>
 
         <div class="full-width info-panel" *ngIf="form.type === 'ABSENCE'">

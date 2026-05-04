@@ -119,8 +119,17 @@
 <div class="notif-overlay" *ngIf="notificationsPanelOpen" (click)="notificationsPanelOpen = false">
     <aside class="notif-panel" (click)="$event.stopPropagation()">
         <div class="panel-header">
-            <h3>Notifications</h3>
-            <button type="button" class="link-btn" (click)="markAllAsRead()">Marquer tout comme lu</button>
+            <div class="panel-header__title">
+                <span class="panel-header__icon"><i class="pi pi-bell"></i></span>
+                <div>
+                    <h3>Notifications</h3>
+                    <small>{{ unreadCount > 0 ? unreadCount + ' non lues' : 'Tout est lu' }}</small>
+                </div>
+            </div>
+            <button type="button" class="mark-read-btn" (click)="markAllAsRead()" [disabled]="unreadCount === 0">
+                <i class="pi pi-check-circle"></i>
+                <span>Marquer tout comme lu</span>
+            </button>
         </div>
 
         <div class="notif-items">
@@ -132,12 +141,14 @@
                     [class.read]="item.read"
                     (click)="onNotificationClick(item)">
                     <span class="notif-type" [ngClass]="item.type">
+                        <span class="notif-type__ring"></span>
                         <i [class]="getNotificationIcon(item.type)"></i>
                     </span>
                     <div class="notif-content">
+                        <span class="notif-kind" [ngClass]="item.type">{{ getNotificationTypeLabel(item.type) }}</span>
                         <strong>{{ item.title }}</strong>
                         <p>{{ item.description }}</p>
-                        <span>{{ item.timeAgo }}</span>
+                        <span class="notif-meta"><i class="pi pi-clock"></i>{{ item.timeAgo }}</span>
                     </div>
                 </article>
             </div>
@@ -150,12 +161,14 @@
                     [class.read]="item.read"
                     (click)="onNotificationClick(item)">
                     <span class="notif-type" [ngClass]="item.type">
+                        <span class="notif-type__ring"></span>
                         <i [class]="getNotificationIcon(item.type)"></i>
                     </span>
                     <div class="notif-content">
+                        <span class="notif-kind" [ngClass]="item.type">{{ getNotificationTypeLabel(item.type) }}</span>
                         <strong>{{ item.title }}</strong>
                         <p>{{ item.description }}</p>
-                        <span>{{ item.timeAgo }}</span>
+                        <span class="notif-meta"><i class="pi pi-clock"></i>{{ item.timeAgo }}</span>
                     </div>
                 </article>
             </div>

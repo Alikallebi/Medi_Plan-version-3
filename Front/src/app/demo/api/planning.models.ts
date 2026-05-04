@@ -98,6 +98,7 @@ export interface Personnel {
     category: PersonnelCategory;
     status: PersonnelStatus;
     avatar?: string;
+    competenceIds?: number[];
 }
 
 export interface Rule {
@@ -117,7 +118,10 @@ export interface Conflict {
         | 'repos_insuffisant'
         | 'quota_depasse'
         | 'incompatibilite_postes'
-        | 'competence_manquante';
+        | 'competence_manquante'
+        | 'undercoverage'
+        | 'eligibility_diagnostic'
+        | 'solver';
     description: string;
     severity: 'warning' | 'critical';
     assignments: string[];
@@ -146,6 +150,43 @@ export interface PlanningHistoryEntry {
 export interface ValidationResult {
     valid: boolean;
     violations: string[];
+}
+
+export interface PlanningGenerateRequest {
+    serviceId: number;
+    weekStart: string;
+    weekEnd: string;
+    constraints?: {
+        userAcceptedMandatoryRules?: boolean;
+        userAcceptedAtUtc?: string;
+        requirePostCoverage?: boolean;
+        enforceSlotIncompatibilities?: boolean;
+        respectReposLegaux?: boolean;
+        competencesObligatoires?: boolean;
+        enforceBlockingUnavailabilities?: boolean;
+        enforceMaxDailyDuration12h?: boolean;
+        enforceSecurityRestAfterGuardOrNight?: boolean;
+        enforceMaxConsecutiveDays6?: boolean;
+        enforceWeeklyRest35hSimplified?: boolean;
+        enforceMonthlyNightQuota?: boolean;
+        maxMonthlyNightShifts?: number;
+        preserveLockedAssignments?: boolean;
+        prioriserDisponibilites?: boolean;
+    };
+}
+
+export interface PlanningGenerateResponse {
+    assignments?: Partial<Assignment>[];
+    proposedAssignments?: Partial<Assignment>[];
+    conflicts?: Conflict[];
+    data?: {
+        assignments?: Partial<Assignment>[];
+        conflicts?: Conflict[];
+    };
+    partial?: boolean;
+    isPartial?: boolean;
+    message?: string;
+    qualityScore?: number;
 }
 
 export interface PlanningStats {
